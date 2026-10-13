@@ -1,0 +1,5 @@
+# runtime state written by the hook
+sessions/
+companion.state
+*.bak*
+.DS_Store
