@@ -140,6 +140,7 @@ pkg_install() {
     }
   fi
   for t in $fallback; do install_direct $t; done
+  rehash
 }
 
 # Tools a distro doesn't package: their own installers / release binaries.
