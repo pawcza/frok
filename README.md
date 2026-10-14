@@ -1,5 +1,8 @@
 # frok
 
+[![test](https://github.com/pawcza/frok/actions/workflows/test.yml/badge.svg)](https://github.com/pawcza/frok/actions/workflows/test.yml)
+[![MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 **A terminal upgrade for people who live in Claude Code.** One command sets up
 your theme, font, prompt, CLI tools and pane layouts. You also get a companion
 pane: a small animated pet that watches every Claude Code session you have open,
@@ -84,8 +87,8 @@ trick's key or click its chip in the footer.
 | `,`, or the settings chip | `frok menu`, right there |
 | click the pet | don't |
 
-How it works and what it stores: [companions/frok](companions/frok/README.md).
-Adding a pet is one file: [pets](companions/frok/pets/README.md).
+How it works and what it stores: [companion](companion/README.md).
+Adding a pet is one file: [pets](companion/pets/README.md).
 
 ## Themes
 
@@ -135,14 +138,30 @@ frok only edits its own files and clearly marked blocks, and keeps backups:
 ## Repository
 
 ```
-bin/frok              the command: setup, menu, apply, doctor, every setting
-lib/                  config, themes, layouts, terminals, shell, the setup screens
-companions/frok/      the companion: engine, Claude Code hook, status line, stats, pets/
-themes/  layouts/     built-in themes and layouts (JSON)
+bin/frok              the command: reads the subcommand, hands it to lib/
+lib/
+  core.zsh            paths, output, config          packages.zsh   installing things
+  commands.zsh        setup, apply, status, doctor, uninstall
+  theme  layout  keys  shell  background  fonts  claude  companion   one concern each
+  terminals/          detect, wezterm, windows-terminal, kitty
+  wizard.zsh          the setup screens and `frok menu`
+companion/            the companion pane (see its README)
+  companion.zsh       main loop          parts/   panes, sessions, pet, render, input…
+  companion-event.sh  Claude Code hook   statusline.sh  stats.sh   pets/
+skill/                the Claude Code skill (lets Claude drive frok)
+themes/  layouts/     built-in themes and layouts (JSON, see their READMEs)
 shell/                the shell init and starship template frok renders
 backgrounds/          the rain generator
-guide/                the Claude Code skill
-docs/                 screenshots (regenerate with docs/screenshots/make.sh) and history/
+tests/                tests/run.sh: offline, in a sandbox; runs on every push
+docs/                 screenshots (rebuild with docs/screenshots/make.sh)
 ```
 
-`docs/history/` keeps the original MacBook setup notes this grew out of.
+## Contributing
+
+Run `tests/run.sh` before sending a change, and `docs/screenshots/make.sh` if
+the companion or the menu look different. New pets, themes and layouts are one
+file each. The READMEs next to them describe the format.
+
+## License
+
+[MIT](LICENSE)

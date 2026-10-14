@@ -21,7 +21,7 @@ wz_banner() {   # wz_banner [tagline]
     '██          ██    ██    ██      ██  ██    ██'
     '██          ██      ██    ██████    ██      ██'
   )
-  local -a frog=("${(@f)$(<$FROK_HOME/companions/frok/frog.txt)}")
+  local -a frog=("${(@f)$(pet_art frok)}")
   local i
   (( ${COLUMNS:-$(tput cols 2>/dev/null || print 80)} < 80 )) && frog=('' '' '' '' '' '')   # the logo alone fits
   print
@@ -41,7 +41,7 @@ wz_has_wt() {
 # Drawn at the banner's position (rows 1-7, column 52), cursor saved and restored.
 WZF_T=0 WZF_EV="" WZF_LEFT=0 WZF_FX=10
 wz_frog_idle() {
-  local -a art=("${(@f)$(<$FROK_HOME/companions/frok/frog.txt)}")
+  local -a art=("${(@f)$(pet_art frok)}")
   local e1="'" e2="'" mouth="'-----'" bub="" dx=0 dy=0 fly=-1 Q="'" r out row1 c
   (( WZF_T++ ))
   if (( WZF_LEFT <= 0 )); then
@@ -335,7 +335,7 @@ wz_pv_companion() {
   print -r -- "$(hexfg ${T[a3]})●$WZ_R ${f}api$m · ${f}Fix the token refresh race$WZ_R"
   print -r -- "  $(hexfg ${T[a3]})needs you$m · needs permission: npm run migrate · 1m$WZ_R"
   print -r -- "$(hexfg ${T[a6]})●$WZ_R ${f}frok$m · ${f}Show a title for each split$WZ_R"
-  print -r -- "  $(hexfg ${T[a6]})working…$m · Edit claude-companion.sh · 8s$WZ_R"
+  print -r -- "  $(hexfg ${T[a6]})working…$m · Edit companion.zsh · 8s$WZ_R"
 }
 
 # wz_pane_label <run> → a short name for a pane in a diagram

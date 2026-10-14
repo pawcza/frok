@@ -8,19 +8,24 @@ Claude Code ──hooks──────▶ companion-event.sh ──▶ state/
             ──status line▶ statusline.sh ───────▶ state/companion/status/<id>
 transcripts ─────────────▶ stats.sh (every minute) ▶ state/companion/stats/days.json
                                                          │
-terminal (panes, ttys) ──────────────────────────▶ claude-companion.sh ◀── pets/<pet>.zsh
+terminal (panes, ttys) ──────────────────────────▶ companion.zsh ◀── pets/<pet>.zsh
 ```
 
 State lives in `~/.local/state/frok/companion/`.
 
 | File | What it does |
 |---|---|
-| `claude-companion.sh` | the pane: finds sessions, draws the pet, the session list and the footer, handles keys and clicks |
+| `companion.zsh` | the pane: sets up the terminal, then loops: draw a frame, read a key or click |
+| `parts/panes.zsh` | which terminal this is, its panes, which run Claude, focusing one |
+| `parts/sessions.zsh` | the session list: hook records checked against transcripts and the status line |
+| `parts/pet.zsh` | loads the pet and draws it, mood and tricks included |
+| `parts/render.zsh` | one frame: pet, sessions, then fact, stats, limits, keys and tricks |
+| `parts/input.zsh` | keys and clicks |
+| `parts/ui.zsh` `usage.zsh` `facts.zsh` | chips and bars; stats and limits; useless facts |
 | `companion-event.sh` | a Claude Code hook for every event (prompt, tool use, permission, stop…). Writes one line per session: time, state, pane, folder, what it's doing, its title, the transcript path. Never stores prompts, file contents or output, and always exits 0. |
 | `statusline.sh` | Claude Code's status line command. Keeps the session's context % and the 5-hour / 7-day usage limits, and prints a short line in Claude Code |
 | `stats.sh` | indexes every transcript into per-day tokens, lines added/removed (from edits) and commits (successful `git commit` calls). Reads only new bytes after the first run. |
-| `pets/` | the pets: art, faces, tricks ([format](pets/README.md)) |
-| `frog.txt` | the frok mascot in the setup screens' banner |
+| `pets/` | the pets: art, faces, tricks ([format](pets/README.md)). The frog doubles as the mascot in the setup screens. |
 
 ## Where a session's status comes from
 

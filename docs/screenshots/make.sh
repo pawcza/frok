@@ -36,7 +36,7 @@ jq -n --arg t $(date +%F) '[range(0; 30)] | map({key: ((now - . * 86400) | strft
 print -r -- 'Alt + D=split →;Alt + Shift + D=split ↓;Alt + ← / ↑ / ↓ / →=move;Ctrl + Shift + W=close pane' > $D/gen/keys.txt
 
 COMP="env -u FROK_PANE FROK_DEMO=1 FROK_DEMO_FOCUS=t:pts/91 FROK_STATE=$D/state FROK_GEN=$D/gen FROK_UI='$UI' \
-  FROK_DEMO_FACT='An octopus has three hearts, and two of them stop when it swims.' timeout -s KILL 4 zsh $FROK/companions/frok/claude-companion.sh"
+  FROK_DEMO_FACT='An octopus has three hearts, and two of them stop when it swims.' timeout -s KILL 4 zsh $FROK/companion/companion.zsh"
 
 print "screenshots:"
 shot companion 128 16 "frok — companion" "FROK_PET=frok $COMP"
@@ -66,7 +66,7 @@ themes=(tokyo-night catppuccin-mocha dracula gruvbox-dark matrix)
 for th in $themes; do
   THEME=$FROK/themes/$th.json
   UI=$(jq -r '"\(.ui.hover) \(.ui.border) \(.ui.accent) \(.fg) \(.ui.muted)"' $THEME)
-  COMP="env -u FROK_PANE FROK_DEMO=1 FROK_DEMO_FOCUS=t:pts/91 FROK_STATE=$D/state FROK_GEN=$D/gen FROK_UI='$UI' timeout -s KILL 3 zsh $FROK/companions/frok/claude-companion.sh"
+  COMP="env -u FROK_PANE FROK_DEMO=1 FROK_DEMO_FOCUS=t:pts/91 FROK_STATE=$D/state FROK_GEN=$D/gen FROK_UI='$UI' timeout -s KILL 3 zsh $FROK/companion/companion.zsh"
   shot theme-$th 84 8 "$(jq -r .name $THEME)" "FROK_PET=frok $COMP" >/dev/null
 done
 python3 - $OUT $themes <<'PY'

@@ -1,6 +1,6 @@
 # Companion pets
 
-One file per pet, sourced by `claude-companion.sh`. `frok companion <name>` picks one.
+One file per pet, loaded by `parts/pet.zsh`. `frok companion <name>` picks one.
 
 - `PET_ART`: 6 rows, at most 28 wide. `{1}` `{2}` are the eyes (one character
   each), `{m}` the mouth. Rows 1-3 keep columns 1-9 empty: speech bubbles and

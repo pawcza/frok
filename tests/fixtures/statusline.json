@@ -1,0 +1,2 @@
+{"session_id":"s1","model":{"display_name":"Opus"},"context_window":{"used_percentage":19.4},
+ "rate_limits":{"five_hour":{"used_percentage":23.5,"resets_at":1792010000},"seven_day":{"used_percentage":41.2,"resets_at":1792400000}}}

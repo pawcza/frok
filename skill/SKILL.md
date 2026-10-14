@@ -56,11 +56,11 @@ give them the exact command to run with `! ` in front.
   layout `side` (one agent + companion + shell), prompt `starship`, font
   `CaskaydiaCove Nerd Font`.
 - Packages, fonts and the login shell were already installed by `frok setup` before you started. If something is missing and needs sudo, give the user the command to run.
-- On Windows (WSL), Windows Terminal is fine; WezTerm adds clicking a session
-  in the companion to jump to its pane and a status bar.
+- On Windows (WSL), Windows Terminal is fine: the companion can jump to the
+  panes frok's layout opened. WezTerm adds a status bar and jumping to any pane.
 
 ## Finish
 
-End with `frok doctor`, then tell the user in two or three lines what changed
-that plain `frok` starts the companion in the current pane, and that `frok menu`
-(or `,` in the companion) opens a menu of every setting.
+End with `frok doctor`, then tell the user in two or three lines what changed.
+Mention that plain `frok` starts the companion in the current pane, and that
+`frok menu` (or `,` in the companion) opens a menu of every setting.

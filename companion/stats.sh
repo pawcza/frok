@@ -24,7 +24,7 @@ dirs+=("$HOME/.claude/projects" "$HOME"/.ccs/instances/*/projects)
 chunks="$DIR/chunks.$$"; : > "$chunks"
 newoffs="$DIR/offsets.$$"; : > "$newoffs"
 while IFS= read -r -d '' f; do
-  size=$(stat -c %s "$f" 2>/dev/null) || continue
+  size=$(wc -c < "$f" 2>/dev/null) || continue; size=${size// /}   # wc, not stat: same on macOS and Linux
   o=${off[$f]:-0}; (( size < o )) && o=0          # rewritten: start over
   if (( size > o )); then
     # only whole lines: a transcript being written may end mid-line
@@ -37,7 +37,7 @@ while IFS= read -r -d '' f; do
 done < <(find "${dirs[@]}" -name '*.jsonl' -mtime -40 -print0 2>/dev/null)
 
 if [ -s "$chunks" ]; then
-  jq -Rn --slurpfile old "$DAYS" --arg since "$(date -d '40 days ago' +%F)" '
+  jq -Rn --slurpfile old "$DAYS" --arg since "$(jq -rn 'now - 40 * 86400 | strftime("%Y-%m-%d")')" '
     def day: (.timestamp // "") | if . == "" then null
       else (sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601 | localtime | strftime("%Y-%m-%d")) end;
     reduce (inputs | fromjson? | select(type == "object")) as $r ({d: $old[0], last: "", git: {}};
