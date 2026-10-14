@@ -1,0 +1,52 @@
+# ~/.config/starship.toml — Tokyo Night theme
+add_newline = true
+
+format = """
+[](#7aa2f7)\
+$directory\
+$git_branch\
+$git_status\
+$nodejs\
+$cmd_duration \
+$character"""
+
+[character]
+success_symbol = "[❯](bold #9ece6a)"
+error_symbol = "[❯](bold #f7768e)"
+vicmd_symbol = "[❮](bold #e0af68)"
+
+[directory]
+style = "bg:#7aa2f7 fg:#1a1b26"
+format = "[ $path ]($style)[](fg:#7aa2f7 bg:#3b4261)"
+truncation_length = 0          # show the whole path, like Windows
+truncate_to_repo = false
+read_only = " "
+
+[git_branch]
+symbol = " "
+style = "bg:#3b4261 fg:#bb9af7"
+format = "[ $symbol$branch ]($style)[](fg:#3b4261)"
+
+[git_status]
+style = "fg:#e0af68"
+format = "[ $all_status$ahead_behind]($style)"
+conflicted = "="
+ahead = "⇡${count}"
+behind = "⇣${count}"
+diverged = "⇕⇡${ahead_count}⇣${behind_count}"
+untracked = "?${count}"
+stashed = "*${count}"
+modified = "!${count}"
+staged = "+${count}"
+renamed = "»${count}"
+deleted = "✘${count}"
+
+[nodejs]
+symbol = " "
+style = "fg:#9ece6a"
+format = "[ $symbol($version) ]($style)"
+
+[cmd_duration]
+min_time = 2000
+style = "fg:#565f89"
+format = "[ took $duration ]($style)"
