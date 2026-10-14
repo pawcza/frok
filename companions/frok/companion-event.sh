@@ -2,7 +2,7 @@
 # companion-event.sh — bridge between Claude Code hooks and the companion.
 # Claude Code pipes the hook payload as JSON on stdin. We keep ONE small state
 # file per session in ~/.config/terminal/sessions/<session_id>:
-#   <ts>\x1f<state>\x1f<pane: WezTerm pane id, or k<id> for a kitty window>\x1f<cwd>\x1f<what it's doing>
+#   <ts>\x1f<state>\x1f<pane: WezTerm pane id, or k<id> for a kitty window>\x1f<cwd>\x1f<what it's doing>\x1f<topic: Claude's title for the session, else the start of the latest prompt>\x1f<transcript path>
 # plus the legacy global companion.state (used by the WezTerm status-bar face).
 # Fast, and exits 0 no matter what (a hook must never block Claude).
 set -u
@@ -15,7 +15,7 @@ IN="$(cat 2>/dev/null)"
 US=$'\x1f'
 
 # One jq pass: event, session, cwd, tool, the tool's main target, prompt, message.
-IFS="$US" read -r EV SID CWD TOOL TARGET PROMPT MSG NTYPE < <(printf '%s' "$IN" | jq -r '
+IFS="$US" read -r EV SID CWD TOOL TARGET PROMPT MSG NTYPE TPATH < <(printf '%s' "$IN" | jq -r '
   def s: (. // "") | tostring | gsub("[\t\n\r\u001f]+"; " ");
   [ .hook_event_name, .session_id, .cwd, .tool_name,
     ( .tool_input as $i | (.tool_name // "") as $t |
@@ -26,7 +26,7 @@ IFS="$US" read -r EV SID CWD TOOL TARGET PROMPT MSG NTYPE < <(printf '%s' "$IN" 
       elif $t == "WebSearch" then $i.query
       elif ($t == "Task" or $t == "Agent") then $i.description
       else "" end ),
-    .prompt, .message, .notification_type ] | map(s) | join("\u001f")' 2>/dev/null)
+    .prompt, .message, .notification_type, .transcript_path ] | map(s) | join("\u001f")' 2>/dev/null)
 [ -z "${SID:-}" ] && exit 0
 F="$SDIR/$SID"
 
@@ -43,7 +43,8 @@ tooldesc() {
     *)                            printf '%s' "$TOOL" ;;
   esac
 }
-prev_detail() { [ -f "$F" ] && IFS="$US" read -r _ _ _ _ d < "$F" && printf '%s' "$d"; }
+prev_detail() { [ -f "$F" ] && IFS="$US" read -r _ _ _ _ d _ < "$F" && printf '%s' "$d"; }
+topic=""; [ -f "$F" ] && IFS="$US" read -r _ _ _ _ _ topic _ < "$F"
 
 detail=""
 case "$EV" in
@@ -53,13 +54,18 @@ case "$EV" in
     case "$PROMPT" in
       "<task-notification"*) detail="background task update" ;;
       "<"*)                  detail="system message" ;;
-      *)                     detail="“$(short "$PROMPT" 55)”" ;;
+      *)                     detail="“$(short "$PROMPT" 55)”"; topic="$(short "$PROMPT" 70)" ;;
     esac ;;
   PreToolUse)         state=working;   detail="$(tooldesc)" ;;
   PostToolUse)        state=thinking;  detail="$(prev_detail)" ;;
   PostToolUseFailure) state=error;     detail="failed: $(tooldesc)" ;;
   SubagentStart)      state=working;   detail="running a subagent" ;;
-  SubagentStop)       state=thinking;  detail="subagent finished" ;;
+  SubagentStop)
+    # after the turn has ended (e.g. Claude Code's away summary) a subagent
+    # finishing doesn't wake the session back up
+    prev=""; [ -f "$F" ] && IFS="$US" read -r _ prev _ < "$F"
+    case "$prev" in done|idle) exit 0 ;; esac
+    state=thinking;  detail="subagent finished" ;;
   PermissionRequest)  state=waiting;   detail="needs permission: $(tooldesc)" ;;
   Notification)
     case "${NTYPE:-}" in
@@ -73,6 +79,12 @@ case "$EV" in
   SessionEnd)         rm -f "$F"; state=sleep ;;
   *)                  exit 0 ;;
 esac
+# Claude's own title for the conversation (what it puts on the pane) lives in the transcript
+if [ -n "${TPATH:-}" ] && [ -r "$TPATH" ]; then
+  t=$(grep -o '"aiTitle":"[^"]*"' "$TPATH" 2>/dev/null | tail -n 1)
+  t=${t#'"aiTitle":"'}; t=${t%'"'}
+  [ -n "$t" ] && topic="$t"
+fi
 
 # which terminal pane is this? kitty sets TERM=xterm-kitty; WezTerm's env can leak
 # into kitty when it's launched from a WezTerm shell, so check kitty first.
@@ -94,7 +106,7 @@ else                                   # any other terminal: use the tty of our 
 fi
 now=$(date +%s)
 if [ "$EV" != "SessionEnd" ]; then
-  printf '%s%s%s%s%s%s%s%s%s\n' "$now" "$US" "$state" "$US" "$PANE" "$US" "$CWD" "$US" "$detail" > "$F.tmp" 2>/dev/null \
+  printf '%s%s%s%s%s%s%s%s%s%s%s%s%s\n' "$now" "$US" "$state" "$US" "$PANE" "$US" "$CWD" "$US" "$detail" "$US" "$topic" "$US" "${TPATH:-}" > "$F.tmp" 2>/dev/null \
     && mv -f "$F.tmp" "$F" 2>/dev/null
 fi
 printf '%s %s\n' "$now" "$state" > "$DIR/companion.state" 2>/dev/null || true

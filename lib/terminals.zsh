@@ -40,7 +40,7 @@ win_copy() {   # win_copy <file> → Windows path of a copy under %LOCALAPPDATA%
 # ── WezTerm ───────────────────────────────────────────────────────────
 render_wezterm() {
   local dir=$HOME/.config/wezterm zsh_bin=$(command -v zsh) state=$FROK_STATE/companion/companion.state
-  local bg=$(background_file) domain="" pet_cmd="$HOME/.local/bin/frok companion run"
+  local bg=$(background_file) domain=""
   if [[ $OS == wsl ]]; then
     dir="$(win_env USERPROFILE)/.config/wezterm"
     domain="config.default_domain = 'WSL:$WSL_DISTRO_NAME'"
@@ -159,9 +159,7 @@ config.keys = {
   { key = 'UpArrow', mods = '$(key_mods resize)', action = act.AdjustPaneSize { 'Up', 3 } },
   { key = 'DownArrow', mods = '$(key_mods resize)', action = act.AdjustPaneSize { 'Down', 3 } },
   { key = '$(key_key close)', mods = '$(key_mods close)', action = act.CloseCurrentPane { confirm = true } },
-  { key = '$(key_key zoom)', mods = '$(key_mods zoom)', action = act.TogglePaneZoomState },
-  { key = '$(key_key pet)', mods = '$(key_mods pet)', action = act.SplitPane { direction = 'Right', size = { Percent = 38 },
-    command = { args = { '$zsh_bin', '-ic', [==[$pet_cmd]==] } } } },"
+  { key = '$(key_key zoom)', mods = '$(key_mods zoom)', action = act.TogglePaneZoomState },"
     (( mac )) && print -r -- "  { key = 'c', mods = 'CMD', action = act.CopyTo 'ClipboardAndPrimarySelection' },
   { key = 'v', mods = 'CMD', action = act.PasteFrom 'Clipboard' },
   { key = 't', mods = 'CMD', action = act.SpawnTab 'CurrentPaneDomain' },
@@ -178,23 +176,23 @@ return config"
 
 # gui-startup: open maximized and build the layout once the window settles.
 wezterm_layout_lua() {
-  local zsh_bin=$1 dir=$(expand_home $(cfg .workdir)) i id cmd args parent
+  local zsh_bin=$1 i id cmd args parent d
+  local dir=$(expand_home $(cfg .workdir))
   load_layout $(cfg .layout)
   print -r -- "
 -- layout: $(cfg .layout)
 wezterm.on('gui-startup', function()
-  local DIR = [==[$dir]==]
-  local function run(cmd) return { '$zsh_bin', '-ic', 'cd \"' .. DIR .. '\" && ' .. cmd .. '; exec $zsh_bin -i' } end"
+  local function run(cmd, dir) return { '$zsh_bin', '-ic', 'cd \"' .. dir .. '\" && ' .. cmd .. '; exec $zsh_bin -i' } end"
   for (( i = 1; i <= $#L_id; i++ )); do
-    cmd=$(pane_cmd ${L_run[i]})
-    [[ -n $cmd ]] && args="args = run [==[$cmd]==], " || args=""
+    cmd=$(pane_cmd ${L_run[i]}); d=$(expand_home ${L_cwd[i]})
+    [[ -n $cmd ]] && args="args = run([==[$cmd]==], [==[$d]==]), " || args=""
     if (( i == 1 )); then
-      print -r -- "  local tab, p_${L_id[i]}, window = mux.spawn_window { cwd = DIR, ${args}}
+      print -r -- "  local tab, p_${L_id[i]}, window = mux.spawn_window { cwd = [==[$d]==], ${args}}
   local gw = window:gui_window(); gw:maximize()
   local function build()"
     else
-      local d=Right; [[ ${L_dir[i]} == down ]] && d=Bottom
-      print -r -- "    local p_${L_id[i]} = p_${L_split[i]}:split { direction = '$d', size = ${L_size[i]}, cwd = DIR, ${args}}"
+      local dd=Right; [[ ${L_dir[i]} == down ]] && dd=Bottom
+      print -r -- "    local p_${L_id[i]} = p_${L_split[i]}:split { direction = '$dd', size = ${L_size[i]}, cwd = [==[$d]==], ${args}}"
     fi
   done
   print -r -- "    p_${L_focus}:activate()
@@ -214,18 +212,20 @@ WT_PET_GUID='{9b6c1f3e-7a2d-4f0e-b5c8-3e1d6a9f0c42}'
 
 # wt.exe command line for the active layout (also used by `frok layout open`)
 wt_layout_cmdline() {
-  local guid=$1 dir=$(cfg .workdir) i cmd parts=() line
+  local guid=$1 i cmd parts=() line
   load_layout $(cfg .layout)
-  pane_line() {
-    local c=$(pane_cmd $1)
-    if [[ -n $c ]]; then print -r -- "-p \"$guid\" wsl.exe -d $WSL_DISTRO_NAME --cd \"$dir\" -- zsh -ic \"${c//\"/\\\"}\\; exec zsh -i\""
-    else print -r -- "-p \"$guid\" wsl.exe -d $WSL_DISTRO_NAME --cd \"$dir\""; fi
+  # FROK_PANE = the pane's id in the tab (creation order), so the companion can
+  # focus it with `wt.exe focus-pane`
+  pane_line() {   # pane_line <run> <dir> <pane id>
+    local c=$(pane_cmd $1) dir=$2
+    if [[ -n $c ]]; then print -r -- "-p \"$guid\" wsl.exe -d $WSL_DISTRO_NAME --cd \"$dir\" -- env FROK_PANE=$3 zsh -ic \"${c//\"/\\\"}\\; exec zsh -i\""
+    else print -r -- "-p \"$guid\" wsl.exe -d $WSL_DISTRO_NAME --cd \"$dir\" -- env FROK_PANE=$3 zsh -il"; fi
   }
-  parts+=("new-tab --title frok $(pane_line ${L_run[1]})")
+  parts+=("new-tab --title frok $(pane_line ${L_run[1]} ${L_cwd[1]} 0)")
   for (( i = 2; i <= $#L_id; i++ )); do
     local o=-V; [[ ${L_dir[i]} == down ]] && o=-H
     parts+=("focus-pane -t $(( $(pane_index ${L_split[i]}) - 1 ))")
-    parts+=("split-pane $o -s ${L_size[i]} $(pane_line ${L_run[i]})")
+    parts+=("split-pane $o -s ${L_size[i]} $(pane_line ${L_run[i]} ${L_cwd[i]} $(( i - 1 )))")
   done
   parts+=("focus-pane -t $(( $(pane_index $L_focus) - 1 ))")
   print -r -- ${(j: ; :)parts}
@@ -263,28 +263,24 @@ render_wt() {
     {colorScheme:$s, foreground:$fg, font:{face:$face, size:$size},
      backgroundImage:$bg, backgroundImageOpacity:(if $bg == "" then 0 else $op end),
      backgroundImageStretchMode:"uniformToFill"}')
-  local pet=$(jq -n --arg g $WT_PET_GUID --arg d $WSL_DISTRO_NAME --arg cmd "$HOME/.local/bin/frok companion run" '
-    {guid:$g, name:"frok companion", hidden:true, closeOnExit:"always",
-     commandline:"wsl.exe -d \($d) -- zsh -ic \"\($cmd)\""}')
   local layout=$(wt_layout_cmdline $main)
-  local actions=$(jq -n --arg pet $WT_PET_GUID --arg layout "$layout" '[
+  local actions=$(jq -n --arg layout "$layout" '[
     {id:"User.frok.right", command:{action:"splitPane", split:"right", splitMode:"duplicate"}},
     {id:"User.frok.down", command:{action:"splitPane", split:"down", splitMode:"duplicate"}},
     {id:"User.frok.zoom", command:"togglePaneZoom"},
-    {id:"User.frok.companion", command:{action:"splitPane", split:"right", size:0.38, profile:$pet}},
     {id:"User.frok.layout", command:{action:"wt", commandline:$layout}}]')
-  local kb=$(jq -n --arg r $(key_plus right) --arg d $(key_plus down) --arg z $(key_plus zoom) --arg p $(key_plus pet) '[
+  local kb=$(jq -n --arg r $(key_plus right) --arg d $(key_plus down) --arg z $(key_plus zoom) '[
     {id:"User.frok.right", keys:$r}, {id:"User.frok.down", keys:$d}, {id:"User.frok.zoom", keys:$z},
-    {id:"User.frok.companion", keys:$p}, {id:"User.frok.layout", keys:"ctrl+shift+l"}]')
+    {id:"User.frok.layout", keys:"ctrl+shift+l"}]')
   local startup=""; [[ $(cfg .layout_on_start) == true ]] && startup=$layout
 
-  jq --argjson scheme "$scheme" --argjson g "$guids" --argjson look "$look" --argjson pet "$(jq --argjson l "$look" '. + ($l | {colorScheme, foreground, font}) + {backgroundImage:"", backgroundImageOpacity:0}' <<< $pet)" \
+  jq --argjson scheme "$scheme" --argjson g "$guids" --argjson look "$look" --arg pet $WT_PET_GUID \
      --argjson actions "$actions" --argjson kb "$kb" --arg main $main --arg startup "$startup" \
      --argjson origstart "$(jq '.startupActions' $orig)" '
     ($kb | map(.keys)) as $ours
     | .schemes = ([.schemes[]? | select(.name | startswith("frok ") | not)] + [$scheme])
-    | .profiles.list = ([.profiles.list[] | select(.guid != $pet.guid)
-        | if (.guid | IN($g[])) then . + $look else . end] + [$pet])
+    | .profiles.list = [.profiles.list[] | select(.guid != $pet)       # drop the old companion profile
+        | if (.guid | IN($g[])) then . + $look else . end]
     | .actions = ([.actions[]? | select((.id // "") | startswith("User.frok.") | not)] + $actions)
     | .keybindings = ([.keybindings[]? | select((.id // "") | startswith("User.frok.") | not)
         | select(.keys | IN($ours[]) | not)] + $kb)
@@ -315,7 +311,6 @@ render_kitty() {
     print "map $rs+left resize_window narrower 3\nmap $rs+right resize_window wider 3"
     print "map $rs+up resize_window taller 3\nmap $rs+down resize_window shorter 3"
     print "map $(key_plus close) close_window\nmap $(key_plus zoom) toggle_layout stack"
-    print "map $(key_plus pet) launch --location=vsplit --bias=38 $(command -v zsh) -ic '$HOME/.local/bin/frok companion run'"
   } >| $dir/frok.conf
   grep -qsx 'include frok.conf' $dir/kitty.conf || print '\ninclude frok.conf' >> $dir/kitty.conf
   say "kitty → $dir/frok.conf"

@@ -9,14 +9,18 @@ layout_file() {
 }
 layout_names() { local d f; for d in $FROK_HOME/layouts $FROK_CONFIG_DIR/layouts; do for f in $d/*.json(N); do print ${f:t:r}; done; done | sort -u; }
 
-# load_layout <name> → arrays L_id L_split L_dir L_size L_run (index-aligned), L_focus
+# load_layout <name> → arrays L_id L_name L_split L_dir L_size L_run L_cwd (index-aligned), L_focus.
+# What a pane runs and where it starts can be overridden per layout in the config:
+# .panes.<layout>.<pane id> = {run, dir}; dir defaults to .workdir.
 load_layout() {
   local f=$(layout_file $1); [[ -n $f ]] || die "no layout called '$1' (try: frok layout)"
-  L_id=() L_split=() L_dir=() L_size=() L_run=()
-  local id sp dr sz rn
-  while IFS=$'\t' read -r id sp dr sz rn; do
-    L_id+=($id) L_split+=($sp) L_dir+=($dr) L_size+=($sz) L_run+=($rn)
-  done < <(jq -r '.panes[] | [.id, (.split // "-"), (.dir // "-"), (.size // 0 | tostring), (.run // "shell")] | @tsv' $f)
+  L_id=() L_name=() L_split=() L_dir=() L_size=() L_run=() L_cwd=()
+  local id nm sp dr sz rn cw ov=$(jq -c --arg l $1 '.panes[$l] // {}' $FROK_CFG 2>/dev/null)
+  while IFS=$'\t' read -r id nm sp dr sz rn cw; do
+    L_id+=($id) L_name+=($nm) L_split+=($sp) L_dir+=($dr) L_size+=($sz) L_run+=($rn) L_cwd+=($cw)
+  done < <(jq -r --argjson ov "${ov:-{\}}" --arg wd "$(cfg .workdir)" '.panes[] | ($ov[.id] // {}) as $o |
+      [.id, (.name // .id), (.split // "-"), (.dir // "-"), (.size // 0 | tostring),
+       ($o.run // .run // "shell"), ($o.dir // $wd)] | @tsv' $f)
   L_focus=$(jq -r '.focus // .panes[0].id' $f)
 }
 

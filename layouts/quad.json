@@ -2,22 +2,11 @@
   "name": "quad",
   "about": "The MacBook layout: left column = companion strip, a shell, an agent; right column = two agents.",
   "panes": [
-    { "id": "pet", "run": "companion" },
-    { "id": "r1", "split": "pet", "dir": "right", "size": 0.5, "run": "agent" },
-    { "id": "shell", "split": "pet", "dir": "down", "size": 0.875, "run": "shell" },
-    { "id": "l3", "split": "shell", "dir": "down", "size": 0.714, "run": "agent" },
-    { "id": "r2", "split": "r1", "dir": "down", "size": 0.5, "run": "agent" }
+    { "id": "pet", "name": "top left strip", "run": "companion" },
+    { "id": "r1", "name": "top right", "split": "pet", "dir": "right", "size": 0.5, "run": "agent" },
+    { "id": "shell", "name": "left middle", "split": "pet", "dir": "down", "size": 0.75, "run": "shell" },
+    { "id": "l3", "name": "bottom left", "split": "shell", "dir": "down", "size": 0.714, "run": "agent" },
+    { "id": "r2", "name": "bottom right", "split": "r1", "dir": "down", "size": 0.5, "run": "agent" }
   ],
-  "focus": "l3",
-  "diagram": [
-    "┌───────────┬───────────┐",
-    "│ companion │           │",
-    "├───────────┤   agent   │",
-    "│   shell   │           │",
-    "├───────────┼───────────┤",
-    "│           │           │",
-    "│   agent   │   agent   │",
-    "│           │           │",
-    "└───────────┴───────────┘"
-  ]
+  "focus": "l3"
 }

@@ -72,7 +72,9 @@ shell_probe() {
                 zmodload zsh/parameter; for n in ${(k)functions}; do s=${functions_source[$n]}
                   [[ -z $FROK_OWN || ( $s == $HOME/* && $s != $FROK_HOME/* ) ]] && print -r -- "cmd $n"; done' ;;
   esac
-  local -a tmo; has timeout && tmo=(timeout 20)
+  # an interactive shell takes over the terminal it finds and can leave ours stopped:
+  # run it in its own session, with no terminal at all
+  local -a tmo; has timeout && tmo=(timeout 20); has setsid && tmo=(setsid -w $tmo)
   env -i HOME=$HOME USER=$USER LOGNAME=$USER LANG=${LANG:-C.UTF-8} TERM=${TERM:-xterm-256color} \
       SHELL=$(command -v $sh) PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
       FROK_HOME=$FROK_HOME FROK_OWN=${${2:-}:#all} \
@@ -150,7 +152,9 @@ shell_port() {
         $dst >| $tmp && mv -f $tmp $dst
     say "added to PATH in ~/.zshrc: ${(j:, :)${(@)miss/#$HOME/~}}"
   fi
-  local -a tmo; has timeout && tmo=(timeout 20)
+  # an interactive shell takes over the terminal it finds and can leave ours stopped:
+  # run it in its own session, with no terminal at all
+  local -a tmo; has timeout && tmo=(timeout 20); has setsid && tmo=(setsid -w $tmo)
   err=$(env -i HOME=$HOME USER=$USER TERM=${TERM:-xterm-256color} PATH=/usr/local/bin:/usr/bin:/bin \
         $tmo zsh -lic exit </dev/null 2>&1 >/dev/null | grep -v "can't change option: zle")
   [[ -z $err ]] || { warn "zsh printed this while loading the new ~/.zshrc:"; print -r -- "$err" >&2; }

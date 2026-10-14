@@ -2,22 +2,11 @@
   "name": "grid",
   "about": "A companion strip across the top, four agents in a 2x2 grid below.",
   "panes": [
-    { "id": "pet", "run": "companion" },
-    { "id": "a", "split": "pet", "dir": "down", "size": 0.88, "run": "agent" },
-    { "id": "b", "split": "a", "dir": "right", "size": 0.5, "run": "agent" },
-    { "id": "c", "split": "a", "dir": "down", "size": 0.5, "run": "agent" },
-    { "id": "d", "split": "b", "dir": "down", "size": 0.5, "run": "agent" }
+    { "id": "pet", "name": "top strip", "run": "companion" },
+    { "id": "a", "name": "top left", "split": "pet", "dir": "down", "size": 0.75, "run": "agent" },
+    { "id": "b", "name": "top right", "split": "a", "dir": "right", "size": 0.5, "run": "agent" },
+    { "id": "c", "name": "bottom left", "split": "a", "dir": "down", "size": 0.5, "run": "agent" },
+    { "id": "d", "name": "bottom right", "split": "b", "dir": "down", "size": 0.5, "run": "agent" }
   ],
-  "focus": "a",
-  "diagram": [
-    "┌───────────────────────┐",
-    "│       companion       │",
-    "├───────────┬───────────┤",
-    "│           │           │",
-    "│   agent   │   agent   │",
-    "│           │           │",
-    "├───────────┼───────────┤",
-    "│   agent   │   agent   │",
-    "└───────────┴───────────┘"
-  ]
+  "focus": "a"
 }

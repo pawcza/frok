@@ -2,18 +2,7 @@
   "name": "single",
   "about": "One pane running your agent. No companion.",
   "panes": [
-    { "id": "main", "run": "agent" }
+    { "id": "main", "name": "the only pane", "run": "agent" }
   ],
-  "focus": "main",
-  "diagram": [
-    "┌───────────────────────┐",
-    "│                       │",
-    "│                       │",
-    "│                       │",
-    "│         agent         │",
-    "│                       │",
-    "│                       │",
-    "│                       │",
-    "└───────────────────────┘"
-  ]
+  "focus": "main"
 }

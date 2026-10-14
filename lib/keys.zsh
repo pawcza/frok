@@ -4,12 +4,12 @@
 typeset -gA KEY
 if [[ $OS == macos ]]; then
   KEY=(right 'CMD d' down 'CMD|SHIFT d' move 'CMD|ALT' resize 'CMD|SHIFT' close 'CMD|SHIFT w'
-       zoom 'CMD z' pet 'CMD|SHIFT k')
-  KEYS_HINT='⌘D=split→;⌘⇧D=split↓;⌘⌥←↑↓→=move;⌘⇧W=close pane;⌘⇧K=companion'
+       zoom 'CMD z')
+  KEYS_HINT='⌘ + D=split →;⌘ + Shift + D=split ↓;⌘ + ⌥ + ← / ↑ / ↓ / →=move;⌘ + Shift + W=close pane'
 else
   KEY=(right 'ALT d' down 'ALT|SHIFT d' move 'ALT' resize 'ALT|SHIFT' close 'CTRL|SHIFT w'
-       zoom 'ALT z' pet 'CTRL|SHIFT k')
-  KEYS_HINT='Alt+D=split→;Alt+⇧D=split↓;Alt+←↑↓→=move;Ctrl+⇧W=close pane;Ctrl+⇧K=companion'
+       zoom 'ALT z')
+  KEYS_HINT='Alt + D=split →;Alt + Shift + D=split ↓;Alt + ← / ↑ / ↓ / →=move;Ctrl + Shift + W=close pane'
 fi
 
 # The companion's footer shows these.

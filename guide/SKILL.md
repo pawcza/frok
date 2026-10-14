@@ -1,6 +1,6 @@
 ---
 name: frok
-description: Set up or change the user's terminal with frok — themes, background, companion, layout, prompt, font, CLI tools. Use when the user runs `frok`, types /frok, or asks to change how their terminal looks or behaves.
+description: Set up or change the user's terminal with frok — themes, background, companion, layout, prompt, font, CLI tools. Use when the user types /frok or asks to change how their terminal looks or behaves.
 ---
 
 # frok guide
@@ -36,7 +36,7 @@ change.
 |---|---|
 | Colour theme | `frok theme` (list) · `frok theme <name>` |
 | Background | `frok background rain` (animated, recoloured to the theme) · `frok background none` · `frok background <image or gif path>` · `frok background opacity 0.2` |
-| Companion (Claude Code session pet) | `frok companion frog` · `frok companion none` · `frok companion facts on/off` |
+| Companion (Claude Code session pet) | `frok companion <pet>` (frok, cat, ghost, robot, octopus) · `frok companion none` · `frok companion facts on/off` |
 | Layout | `frok layout` (list) · `frok layout <name>` · `frok layout open` (open it now) · `frok layout autostart on/off` |
 | What agent panes run | `frok agent "<command>"` (default `claude`) · `frok workdir <dir>` |
 | Prompt | `frok prompt starship` · `frok prompt none` |
@@ -52,7 +52,7 @@ give them the exact command to run with `! ` in front.
 
 ## Good defaults to suggest
 
-- Theme `tokyo-night`, background `rain` at opacity 0.2, companion `frog`,
+- Theme `tokyo-night`, background `rain` at opacity 0.2, companion `frok`,
   layout `side` (one agent + companion + shell), prompt `starship`, font
   `CaskaydiaCove Nerd Font`.
 - Packages, fonts and the login shell were already installed by `frok setup` before you started. If something is missing and needs sudo, give the user the command to run.
@@ -62,4 +62,5 @@ give them the exact command to run with `! ` in front.
 ## Finish
 
 End with `frok doctor`, then tell the user in two or three lines what changed
-and that running `frok` again brings them back here.
+that plain `frok` starts the companion in the current pane, and that `frok menu`
+(or `,` in the companion) opens a menu of every setting.

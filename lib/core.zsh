@@ -30,7 +30,7 @@ FROK_DEFAULTS='{
   "theme": "tokyo-night",
   "background": "rain",
   "background_opacity": 0.2,
-  "companion": "frog",
+  "companion": "frok",
   "facts": true,
   "layout": "side",
   "layout_on_start": true,
@@ -43,7 +43,10 @@ FROK_DEFAULTS='{
 }'
 
 cfg_init() {
-  [[ -f $FROK_CFG ]] && return
+  if [[ -f $FROK_CFG ]]; then
+    [[ $(jq -r '.companion // empty' $FROK_CFG) == frog ]] && cfg_set .companion '"frok"'   # renamed after its tool
+    return 0
+  fi
   print -r -- $FROK_DEFAULTS | jq . >| $FROK_CFG
   [[ $OS == macos ]] && cfg_set .font.size 14     # Retina: the MacBook setup's size
   return 0
