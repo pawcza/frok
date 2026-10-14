@@ -96,14 +96,16 @@ font_install() {
       brew list --cask $cask >/dev/null 2>&1 || { step "installing $family"; brew install --cask $cask } ;;
     linux)
       fc-list 2>/dev/null | grep -qi "${family% Mono}" && return
-      font_fetch $zip $HOME/.local/share/fonts/frok && fc-cache -f >/dev/null 2>&1 && say "font: $family" ;;
+      font_fetch $zip $HOME/.local/share/fonts/frok || return
+      has fc-cache && fc-cache -f >/dev/null 2>&1; true ;;
     wsl)
       local la=$(win_env LOCALAPPDATA); local dest="$la/Microsoft/Windows/Fonts"
+      [[ -n $la ]] || { warn "can't reach Windows from here, so $family isn't installed"; return 1 }
       ls "$dest" /mnt/c/Windows/Fonts 2>/dev/null | grep -qi "${${family// /}%NerdFont*}NerdFont" && return
       local tmp=$(mktemp -d)
       font_fetch $zip $tmp || return
       mkdir -p "$dest"
-      local f; for f in $tmp/*.ttf(N); do cp -f $f "$dest/"; done
+      cp -f $tmp/*.ttf(N) "$dest/" || { warn "couldn't copy $family into $dest"; rm -rf $tmp; return 1 }
       # register them for this user (no admin needed)
       powershell.exe -NoProfile -Command '
         $d = Join-Path $env:LOCALAPPDATA "Microsoft\Windows\Fonts"
@@ -116,13 +118,13 @@ font_install() {
 }
 
 font_fetch() {   # font_fetch <zip name> <dest dir>
-  step "downloading the $1 Nerd Font"
   mkdir -p $2
   local z=$(mktemp)
-  curl -fsSL -o $z "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/$1.zip" \
-    && unzip -oq $z '*.ttf' -d $2 || { warn "font download failed"; rm -f $z; return 1 }
+  quietly "downloading the $1 Nerd Font" font_get $z $2 $1; local ok=$?
   rm -f $z
+  return $ok
 }
+font_get() { curl -fsSL -o $1 "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/$3.zip" && unzip -oq $1 '*.ttf' -d $2; }
 
 # ── CLI tools ─────────────────────────────────────────────────────────
 tools_install() {

@@ -8,16 +8,18 @@ mkdir -p $FROK_CONFIG_DIR $FROK_STATE/companion/sessions $FROK_GEN
 # direct installs land in ~/.local/bin, which a fresh shell may not have on PATH yet
 (( ${path[(Ie)$HOME/.local/bin]} )) || path=($HOME/.local/bin $path)
 
-say()  { print -P "%F{green}✓%f $*"; }
-step() { print -P "%F{cyan}→%f $*"; }
-warn() { print -P "%F{yellow}!%f $*" >&2; }
-die()  { print -P "%F{red}✗%f $*" >&2; exit 1; }
+# FROK_INDENT lines these up with the setup screens
+say()  { print -P "${FROK_INDENT-}%F{green}✓%f $*"; }
+step() { print -P "${FROK_INDENT-}%F{cyan}→%f $*"; }
+warn() { print -P "${FROK_INDENT-}%F{yellow}!%f $*" >&2; }
+die()  { print -P "${FROK_INDENT-}%F{red}✗%f $*" >&2; exit 1; }
 has()  { (( $+commands[$1] )); }
 
 frok_os() {
   case $OSTYPE in
     darwin*) print macos ;;
-    linux*)  if [[ -n $WSL_DISTRO_NAME ]] || grep -qi microsoft /proc/version 2>/dev/null; then print wsl; else print linux; fi ;;
+    # a WSL kernel alone isn't enough: Docker containers on Windows share it but can't reach Windows
+    linux*)  if [[ -n $WSL_DISTRO_NAME || -e /usr/bin/wslpath ]] && grep -qi microsoft /proc/version 2>/dev/null; then print wsl; else print linux; fi ;;
     *)       print other ;;
   esac
 }
@@ -112,6 +114,30 @@ autosuggest_path() {
 }
 
 typeset -g _pm_updated=0
+FROK_LOG=$FROK_STATE/install.log
+
+# quietly <what> <command…> — runs it with its output in the install log; shows one line
+quietly() {
+  local what=$1; shift
+  [[ -t 1 ]] && print -Pn "${FROK_INDENT-}%F{cyan}…%f $what"
+  if "$@" >>$FROK_LOG 2>&1; then
+    [[ -t 1 ]] && print -n $'\r\e[K'; say $what
+  else
+    [[ -t 1 ]] && print -n $'\r\e[K'; warn "$what failed (details in ${FROK_LOG/#$HOME/~})"; return 1
+  fi
+}
+
+pm_install() {
+  case $PM in
+    brew)   brew install "$@" ;;
+    apt)    (( _pm_updated++ )) || as_root apt-get update -qq; as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y "$@" ;;
+    dnf)    as_root dnf install -y "$@" ;;
+    pacman) as_root pacman -S --needed --noconfirm "$@" ;;
+    zypper) as_root zypper install -y "$@" ;;
+    apk)    as_root apk add "$@" ;;
+  esac
+}
+
 # pkg_install <tool...>  — installs whatever is missing, one package-manager call.
 pkg_install() {
   local t n; local -a names fallback
@@ -121,23 +147,9 @@ pkg_install() {
     if [[ $n == - || -z $PM ]]; then fallback+=($t); else names+=($n); fi
   done
   if (( $#names )); then
-    step "installing ${(j:, :)names}"
-    case $PM in
-      brew)   brew install $names ;;
-      apt)    (( _pm_updated++ )) || as_root apt-get update -qq; as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y $names ;;
-      dnf)    as_root dnf install -y $names ;;
-      pacman) as_root pacman -S --needed --noconfirm $names ;;
-      zypper) as_root zypper install -y $names ;;
-      apk)    as_root apk add $names ;;
-    esac || {
-      # one unknown name fails the whole batch on most package managers: go one by one
-      local n1; for n1 in $names; do
-        case $PM in
-          brew) brew install $n1 ;;  apt) as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y $n1 ;;  dnf) as_root dnf install -y $n1 ;;
-          pacman) as_root pacman -S --needed --noconfirm $n1 ;;  zypper) as_root zypper install -y $n1 ;;  apk) as_root apk add $n1 ;;
-        esac >/dev/null 2>&1 || warn "couldn't install $n1 with $PM"
-      done
-    }
+    # one unknown name fails the whole batch on most package managers: then go one by one
+    quietly "installing ${(j:, :)names}" pm_install $names 2>/dev/null ||
+      { local n1; for n1 in $names; do quietly "installing $n1" pm_install $n1; done }
   fi
   for t in $fallback; do install_direct $t; done
   rehash
@@ -147,18 +159,18 @@ pkg_install() {
 install_direct() {
   mkdir -p $HOME/.local/bin
   case $1 in
-    starship)
-      step "installing starship"
-      curl -fsSL https://starship.rs/install.sh | sh -s -- -y -b $HOME/.local/bin >/dev/null ;;
-    lazygit)
-      step "installing lazygit"
-      local arch=x86_64; [[ $(uname -m) == (aarch64|arm64) ]] && arch=arm64
-      local tag=$(curl -fsSL https://api.github.com/repos/jesseduffield/lazygit/releases/latest | jq -r .tag_name)
-      [[ -n $tag ]] || { warn "couldn't look up lazygit's latest release"; return }
-      curl -fsSL "https://github.com/jesseduffield/lazygit/releases/download/$tag/lazygit_${tag#v}_Linux_${arch}.tar.gz" \
-        | tar -xz -C $HOME/.local/bin lazygit ;;
+    starship) quietly "installing starship" starship_get ;;
+    lazygit)  quietly "installing lazygit" lazygit_get ;;
     *) warn "don't know how to install $1 here" ;;
   esac
+}
+starship_get() { curl -fsSL https://starship.rs/install.sh | sh -s -- -y -b $HOME/.local/bin; }
+lazygit_get() {
+  local arch=x86_64; [[ $(uname -m) == (aarch64|arm64) ]] && arch=arm64
+  local tag=$(curl -fsSL https://api.github.com/repos/jesseduffield/lazygit/releases/latest | jq -r .tag_name)
+  [[ -n $tag && $tag != null ]] || { print "couldn't look up lazygit's latest release"; return 1 }
+  curl -fsSL "https://github.com/jesseduffield/lazygit/releases/download/$tag/lazygit_${tag#v}_Linux_${arch}.tar.gz" \
+    | tar -xz -C $HOME/.local/bin lazygit
 }
 
 # ── Windows side, from WSL ──────────────────────────────────────────

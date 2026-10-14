@@ -12,19 +12,20 @@ wz_cls() { [[ -t 1 ]] && print -n $'\e[2J\e[H'; }
 wz_banner() {
   local -a logo=(
     ''
-    '  __               _'
-    ' / _| _ __   ___  | | __'
-    '| |_ | '"'"'__| / _ \ | |/ /'
-    '|  _|| |   | (_) ||   < '
-    '|_|  |_|    \___/ |_|\_\'
+    '██████████  ████████      ██████    ██      ██'
+    '██          ██      ██  ██      ██  ██    ██'
+    '████████    ████████    ██      ██  ██████'
+    '██          ██    ██    ██      ██  ██    ██'
+    '██          ██      ██    ██████    ██      ██'
   )
   local -a frog=("${(@f)$(<$FROK_HOME/companions/frog/frog.txt)}")
   local i
+  (( ${COLUMNS:-$(tput cols 2>/dev/null || print 80)} < 80 )) && frog=('' '' '' '' '' '')   # the logo alone fits
   print
   for (( i = 1; i <= $#frog; i++ )); do
-    print -r -- "  $(hexfg $(mix ${T[accent]} ${T[accent2]} $(( 100 - 100 * (i - 1) / ($#frog - 1) ))))${(r:28:)logo[i]}$(hexfg ${T[a2]})${frog[i]:5}$WZ_R"
+    print -r -- "  $(hexfg $(mix ${T[accent]} ${T[accent2]} $(( 100 - 100 * (i - 1) / ($#frog - 1) ))))${(r:49:)logo[i]}$(hexfg ${T[a2]})${frog[i]:5}$WZ_R"
   done
-  print -r -- "  $(hexfg ${T[muted]})your terminal, set up one step at a time$WZ_R"
+  print -r -- $'\n'"  $(hexfg ${T[muted]})your terminal, set up one step at a time$WZ_R"
 }
 
 wz_header() {   # wz_header <step> <title> <what it's about>
@@ -44,9 +45,15 @@ wz_header() {   # wz_header <step> <title> <what it's about>
 wz_choose() {
   local def=$1; shift
   local -a vals descs; while (( $# )); do vals+=($1); descs+=("$2"); shift 2; done
-  local i w=0 ans
+  local i w=0 ans line=""
   for i in $vals; do (( $#i > w )) && w=$#i; done
-  for (( i = 1; i <= $#vals; i++ )); do
+  if (( ${WZ_COMPACT:-0} )); then   # one line, for screens that already show the options
+    for (( i = 1; i <= $#vals; i++ )); do
+      [[ ${vals[i]} == $def ]] && line+="$(hexfg ${T[accent]})❯ $i $WZ_B${vals[i]}$WZ_R   " || line+="$(hexfg ${T[muted]})  $i$WZ_R ${vals[i]}   "
+    done
+    print -r -- "  $line" >&2
+  fi
+  for (( i = 1; i <= $#vals && ! ${WZ_COMPACT:-0}; i++ )); do
     if [[ ${vals[i]} == $def ]]; then
       print -r -- "  $(hexfg ${T[accent]})❯ $i  $WZ_B${(r:w:)vals[i]}$WZ_R  ${descs[i]}$WZ_R" >&2
     else
@@ -80,10 +87,18 @@ wz_welcome() {
   wz_banner
   print -r -- $'\n'"  Six quick steps: $WZ_B""theme, background, companion, layout, prompt, font$WZ_R."
   print -r -- "  Each one is applied as you pick it, so you see it straight away."
-  print -r -- "  First frok installs its toolkit (CLI tools, starship, a Nerd Font)."
+  print -r -- "  First frok installs its toolkit: CLI tools, starship and a Nerd Font."
   print -rn -- $'\n'"  $(hexfg ${T[muted]})press Enter to start$WZ_R  $(hexfg ${T[accent]})›$WZ_R "
   read -r </dev/tty
   print
+}
+
+wz_ready() {
+  FROK_INDENT="  "
+  wz_cls
+  print -r -- $'\n'"  $WZ_B$(hexfg ${T[a2]})frok$WZ_R  $(hexfg ${T[muted]})getting ready$WZ_R"
+  print -r -- "  $(hexfg ${T[border]})${(l:46::─:)}$WZ_R"
+  print -r -- $'\n'"  $(hexfg ${T[muted]})Installing the toolkit. The first time takes a minute or two.$WZ_R"$'\n'
 }
 
 wz_theme() {
@@ -136,12 +151,14 @@ wz_layout() {
     done
     print -rl -- $lines ''
   done
-  local -a opts=(); for n in $names; do opts+=($n "$(jq -r .about $(layout_file $n))"); done
-  wz_set .layout $(wz_choose $cur "${opts[@]}") && { wz_layout; return }
+  local -a opts=(); for n in $names; do opts+=($n ""); done
+  wz_set .layout $(WZ_COMPACT=1 wz_choose $cur "${opts[@]}") && { wz_layout; return }
   [[ $cur == single ]] && return
   wz_header 4 Layout "Open every new terminal window in this layout?"
+  local later="split on demand with frok layout open"
+  terminals_active | grep -qx windows-terminal && later+=" or Ctrl+Shift+L"
   local on=$(wz_choose $([[ $(cfg .layout_on_start) == true ]] && print yes || print no) \
-      yes "every new window starts split" no "split on demand: frok layout open (Ctrl+Shift+L in Windows Terminal)")
+      yes "every new window starts split" no $later)
   wz_set .layout_on_start $([[ $on == yes ]] && print true || print false) || true
 }
 
@@ -153,10 +170,10 @@ wz_prompt() {
 }
 
 wz_font() {
-  local -a opts=() f; local cur=$(cfg .font.family)
-  for f in 'CaskaydiaCove Nerd Font' 'JetBrainsMono Nerd Font' 'FiraCode Nerd Font' 'Hack Nerd Font' 'MesloLGS Nerd Font'; do
-    opts+=("${f% Nerd Font}" "")
-  done
+  local -a opts; local cur=$(cfg .font.family)
+  opts=(CaskaydiaCove "Cascadia Code with icons, ligatures" JetBrainsMono "tall letters, easy on the eyes"
+        FiraCode "ligatures, a long-time favourite" Hack "plain and sturdy, no ligatures"
+        MesloLGS "Menlo-like, feels like macOS")
   (( ${opts[(Ie)${cur% Nerd Font}]} )) || opts+=("$cur" "(yours)")
   local note="Nerd Fonts carry the icons the prompt and tools use; frok downloads the one you pick."
   [[ $OS == wsl ]] && note+=" Restart Windows Terminal afterwards to see it."
@@ -165,21 +182,27 @@ wz_font() {
   [[ -n ${NERD_ZIP[$c Nerd Font]} ]] && c+=" Nerd Font"
   wz_set .font.family $c || true
   wz_header 6 Font "Font size."
-  wz_set .font.size $(wz_choose $(cfg .font.size) 10 "" 11 "" 12 "" 13 "" 14 "" 16 "") || true
+  wz_set .font.size $(wz_choose $(cfg .font.size) 10 small 11 "" 12 "" 13 "" 14 "roomy, good on Retina" 16 large) || true
 }
 
 wz_done() {
+  local m=$(hexfg ${T[muted]}) tl=$(cfg .layout)
+  local bg=$(cfg .background); [[ $bg == none ]] || bg+=" at $(cfg .background_opacity)"
+  [[ $(cfg .layout_on_start) == true && $tl != single ]] && tl+=", in every new window"
   wz_cls
   wz_banner
   print -r -- $'\n'"  $(hexfg ${T[a2]})✓$WZ_R $WZ_B""all set$WZ_R"$'\n'
-  status | tail -n +2
-  print
-  [[ $(cfg .layout_on_start) == true && $(cfg .layout) != single ]] &&
-    print -r -- "  New terminal windows open in the $WZ_B$(cfg .layout)$WZ_R layout."
-  print -r -- "  Run $WZ_B""frok$WZ_R any time to change things."
+  print -r -- "  ${m}theme$WZ_R       $(cfg .theme)  $(swatch)"
+  print -r -- "  ${m}background$WZ_R  $bg"
+  print -r -- "  ${m}companion$WZ_R   $(cfg .companion)"
+  print -r -- "  ${m}layout$WZ_R      $tl"
+  print -r -- "  ${m}prompt$WZ_R      $(cfg .prompt)"
+  print -r -- "  ${m}font$WZ_R        $(cfg .font.family), $(cfg .font.size)"
+  print -r -- $'\n'"  Open a new terminal window to see it all. Run $WZ_B""frok$WZ_R any time to change things."
 }
 
 wizard() {
+  local FROK_INDENT="  "
   load_theme $(cfg .theme)
   wz_apply
   wz_theme

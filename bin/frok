@@ -58,17 +58,11 @@ on_off() { case $1 in on|true|yes) print true ;; off|false|no) print false ;; *)
 
 # ── picker for questions asked before the wizard ──────────────────────
 pick() {   # pick "<question>" <default> <options…> → chosen option
-  local q=$1 def=$2; shift 2
-  local -a opts=("$@") ; local ans i
-  print -P "\n%B$q%b" >&2
-  for (( i = 1; i <= $#opts; i++ )); do
-    [[ ${opts[i]} == $def ]] && print -P "  %F{cyan}$i%f) ${opts[i]} %F{8}(default)%f" >&2 || print -P "  %F{cyan}$i%f) ${opts[i]}" >&2
-  done
-  read -r "ans?> " </dev/tty
-  [[ -z $ans ]] && { print -r -- $def; return }
-  [[ $ans == <-> && $ans -ge 1 && $ans -le $#opts ]] && { print -r -- ${opts[ans]}; return }
-  (( ${opts[(Ie)$ans]} )) && { print -r -- $ans; return }
-  print -r -- $def
+  local q=$1 def=$2 o; shift 2
+  local -a opts=(); for o; do opts+=($o ""); done
+  (( $#T )) || load_theme $(cfg .theme)
+  print -r -- $'\n'"  $WZ_B$q$WZ_R"$'\n' >&2
+  wz_choose $def "${opts[@]}"
 }
 
 # Everything that may need a password happens here, in your terminal, before
@@ -83,7 +77,10 @@ prepare() {
       [[ $(cfg .agent) == claude ]] && cfg_set .agent "$(jstr $c)"
     elif (( $#cc == 1 )); then cfg_set .claude "$(jstr ${cc[1]})"; fi
   fi
-  step "installing the toolkit (your password may be asked once)"
+  if (( EUID )) && has sudo && ! sudo -n true 2>/dev/null; then
+    step "frok installs packages with sudo: enter your password once"
+    sudo -v </dev/tty || die "sudo is needed to install packages"
+  fi
   tools_install
   pkg_install starship python3 pillow
   font_install
@@ -102,6 +99,7 @@ guide() {
 setup() {
   cfg_init
   wz_welcome
+  wz_ready
   prepare
   wizard
   if [[ $1 != --plain ]] && [[ -n $(claude_choices) && -t 0 ]]; then

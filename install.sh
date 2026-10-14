@@ -29,7 +29,7 @@ as_root() {
 # ── which system ──────────────────────────────────────────────────────
 case "$(uname -s)" in
   Darwin) OS=macos ;;
-  Linux)  if grep -qi microsoft /proc/version 2>/dev/null; then OS=wsl; else OS=linux; fi ;;
+  Linux)  if grep -qi microsoft /proc/version 2>/dev/null && { [ -n "${WSL_DISTRO_NAME:-}" ] || [ -e /usr/bin/wslpath ]; }; then OS=wsl; else OS=linux; fi ;;
   MINGW*|MSYS*|CYGWIN*)
     die "frok runs inside WSL on Windows. Install it with \`wsl --install\`, open Ubuntu, and run this again there." ;;
   *) die "unsupported system: $(uname -s)" ;;
@@ -50,7 +50,7 @@ if [ -n "$need" ]; then
     fi
     # shellcheck disable=SC2086
     brew install $need
-  elif has apt-get; then as_root apt-get update -qq && as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y $need
+  elif has apt-get; then as_root apt-get update -qq >/dev/null && as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $need >/dev/null
   elif has dnf;     then as_root dnf install -y $need
   elif has pacman;  then as_root pacman -S --needed --noconfirm $need
   elif has zypper;  then as_root zypper install -y $need
