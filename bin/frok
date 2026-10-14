@@ -1,0 +1,289 @@
+#!/usr/bin/env zsh
+# frok — a terminal upgrade you set up once and steer by asking.
+# `frok` alone: the step-by-step setup the first time, then the Claude Code guide.
+emulate -L zsh
+setopt extendedglob pipefail
+FROK_HOME=${${0:A}:h:h}
+for f in core theme keys layout shell modules terminals wizard; do source $FROK_HOME/lib/$f.zsh; done
+
+usage() {
+  cat <<EOF
+frok — terminal setup and settings
+
+  frok                      guided setup / change settings (uses Claude Code if installed)
+  frok setup [--plain]      step-by-step setup (--plain: don't offer the Claude guide after)
+  frok status [--json]      what's set and what's available
+  frok apply                re-apply everything
+  frok doctor               check the install
+
+  frok theme [name]                         colour theme (no name: list with swatches)
+  frok background rain|none|<file>          background (rain is recoloured per theme)
+  frok background opacity <0-1>
+  frok companion frog|none                  the Claude Code session pet
+  frok companion facts on|off               useless facts in the companion
+  frok layout [name]                        pane layout (no name: list)
+  frok layout open                          open the layout now (Windows Terminal)
+  frok layout autostart on|off              build it when the terminal starts
+  frok claude "<command>"                   how to start Claude Code for the guide (e.g. ccs personal)
+  frok agent "<command>"                    what agent panes run (default: claude)
+  frok workdir <dir>                        where layout panes start
+  frok prompt starship|none
+  frok font "<family>" [size] | frok font size <n>
+  frok tools [install | add <t> | remove <t>]
+  frok terminals [set <names…> | auto]
+  frok shell zsh|bash [--force]             change your login shell (checks the new one gets your PATH/aliases)
+  frok shell port                           rebuild ~/.zshrc from ~/.bashrc (old one backed up)
+  frok update                               pull the latest frok and re-apply
+  frok uninstall                            undo frok's changes (keeps ~/.config/frok)
+EOF
+}
+
+# ── apply ─────────────────────────────────────────────────────────────
+apply_all() {
+  cfg_init
+  load_theme $(cfg .theme)
+  render_keys
+  [[ $(cfg .prompt) == starship ]] && pkg_install starship
+  render_shell
+  render_starship
+  font_install
+  companion_hooks $(cfg .companion)
+  skill_install
+  render_terminals
+  cfg_set .configured true
+  say "applied (${T[name]})"
+}
+
+on_off() { case $1 in on|true|yes) print true ;; off|false|no) print false ;; *) die "on or off?" ;; esac; }
+
+# ── picker for questions asked before the wizard ──────────────────────
+pick() {   # pick "<question>" <default> <options…> → chosen option
+  local q=$1 def=$2; shift 2
+  local -a opts=("$@") ; local ans i
+  print -P "\n%B$q%b" >&2
+  for (( i = 1; i <= $#opts; i++ )); do
+    [[ ${opts[i]} == $def ]] && print -P "  %F{cyan}$i%f) ${opts[i]} %F{8}(default)%f" >&2 || print -P "  %F{cyan}$i%f) ${opts[i]}" >&2
+  done
+  read -r "ans?> " </dev/tty
+  [[ -z $ans ]] && { print -r -- $def; return }
+  [[ $ans == <-> && $ans -ge 1 && $ans -le $#opts ]] && { print -r -- ${opts[ans]}; return }
+  (( ${opts[(Ie)$ans]} )) && { print -r -- $ans; return }
+  print -r -- $def
+}
+
+# Everything that may need a password happens here, in your terminal, before
+# the guide starts: Claude Code's shell can't answer a sudo prompt.
+prepare() {
+  # which Claude to open the guide with (asked once, when there's a choice)
+  if [[ -z $(jq -r '.claude // empty' $FROK_CFG) ]]; then
+    local -a cc; cc=(${(f)"$(claude_choices)"})
+    if (( $#cc > 1 )); then
+      local c=$(pick 'How do you start Claude Code?' ${cc[1]} $cc)
+      cfg_set .claude "$(jstr $c)"
+      [[ $(cfg .agent) == claude ]] && cfg_set .agent "$(jstr $c)"
+    elif (( $#cc == 1 )); then cfg_set .claude "$(jstr ${cc[1]})"; fi
+  fi
+  step "installing the toolkit (your password may be asked once)"
+  tools_install
+  pkg_install starship python3 pillow
+  font_install
+  if [[ ${SHELL:t} != zsh ]] && [[ $(pick 'Make zsh your login shell? (the companion and layouts use it either way)' yes yes no) == yes ]]; then
+    shell_set zsh
+  fi
+}
+
+guide() {
+  skill_install
+  local c=${$(cfg .claude):-claude}
+  step "opening the frok guide ($c)"
+  exec ${(z)c} "/frok"
+}
+
+setup() {
+  cfg_init
+  wz_welcome
+  prepare
+  wizard
+  if [[ $1 != --plain ]] && [[ -n $(claude_choices) && -t 0 ]]; then
+    print -r -- $'\n'"  Want to fine-tune more by chatting with Claude?"
+    [[ $(wz_choose no yes "open the frok guide in Claude Code" no "done for now") == yes ]] && guide
+  fi
+  return 0
+}
+
+# ── status ────────────────────────────────────────────────────────────
+status_json() {
+  cfg_init
+  jq -n --argjson cfg "$(jq --argjson d "$FROK_DEFAULTS" '$d * .' $FROK_CFG)" \
+     --arg os $OS --arg pm "$PM" --arg home $FROK_HOME --arg shell ${SHELL:t} \
+     --argjson det "$(terminals_detected | jq -R . | jq -s .)" \
+     --argjson act "$(terminals_active | jq -R . | jq -s .)" \
+     --argjson themes "$(theme_names | jq -R . | jq -s .)" \
+     --argjson layouts "$(for l in $(layout_names); do jq -c '{name, about}' $(layout_file $l); done | jq -s .)" \
+     --argjson comps "$(companion_names | jq -R . | jq -s .)" \
+     --argjson claude "$(has claude && print true || print false)" '
+    {configured: ($cfg.configured // false), os:$os, package_manager:$pm, frok_home:$home, login_shell:$shell,
+     claude_code:$claude, terminals:{detected:$det, configured:$act}, settings:($cfg | del(.configured)),
+     available:{themes:$themes, layouts:$layouts, companions:($comps + ["none"]), backgrounds:["rain","none","<path to image/gif>"],
+       prompts:["starship","none"], fonts:["CaskaydiaCove Nerd Font","JetBrainsMono Nerd Font","FiraCode Nerd Font","Hack Nerd Font","MesloLGS Nerd Font","<any installed font>"],
+       tools:["eza","bat","fd","zoxide","ripgrep","fzf","delta","lazygit","gh","btop","tldr","autosuggestions"]}}'
+}
+
+status() {
+  [[ $1 == --json ]] && { status_json; return }
+  cfg_init; load_theme $(cfg .theme)
+  print -P "%Bfrok%b on $OS ($PM) · $FROK_HOME"
+  printf '  %-12s %s  %s\n' theme $(cfg .theme) "$(swatch)"
+  printf '  %-12s %s (opacity %s)\n' background $(cfg .background) $(cfg .background_opacity)
+  printf '  %-12s %s (facts %s)\n' companion $(cfg .companion) $(cfg .facts)
+  printf '  %-12s %s (autostart %s) · agent: %s · workdir: %s\n' layout $(cfg .layout) $(cfg .layout_on_start) "$(cfg .agent)" $(cfg .workdir)
+  printf '  %-12s %s\n' prompt $(cfg .prompt)
+  printf '  %-12s %s %s\n' font "$(cfg .font.family)" $(cfg .font.size)
+  printf '  %-12s %s\n' tools "$(cfg '.tools | join(" ")')"
+  printf '  %-12s %s\n' terminals "$(terminals_active | tr '\n' ' ')"
+}
+
+# ── doctor ────────────────────────────────────────────────────────────
+doctor() {
+  cfg_init
+  local ok=1 t
+  chk() { if eval "$2"; then say "$1"; else warn "$1 — $3"; ok=0; fi }
+  chk "zsh, jq, curl, git"     'has zsh && has jq && has curl && has git' 'run install.sh again'
+  chk "frok on PATH"           'has frok' 'add ~/.local/bin to PATH'
+  chk "shell hook in rc"       'grep -qsF frok/generated/init.sh ~/.zshrc' 'run frok apply'
+  if [[ ${SHELL:t} == zsh && -f ~/.bashrc ]]; then
+    local -a gap=(${(f)"$(shell_gap bash zsh)"})
+    local -a gp=(${(M)gap:#path *})
+    chk "zsh has your bash setup" '(( ! $#gap ))' "zsh lacks $#gp PATH dirs and $(( $#gap - $#gp )) aliases/functions from ~/.bashrc — run \`frok shell port\`"
+  fi
+  [[ $(cfg .prompt) == starship ]] && chk "starship" 'has starship' 'frok tools install'
+  for t in ${(f)"$(cfg '.tools[]?')"}; do chk "tool: $t" "tool_present $t" 'frok tools install'; done
+  if [[ $(cfg .companion) != none ]]; then
+    for t in $(claude_dirs); do
+      chk "companion hooks in ${t/#$HOME/~}" "jq -e '[.hooks[]?[]?.hooks[]?.command] | any(endswith(\"companion-event.sh\"))' $t/settings.json >/dev/null 2>&1" 'frok apply'
+    done
+  fi
+  for t in $(terminals_active); do
+    case $t in
+      windows-terminal) chk "Windows Terminal" "jq -e '.schemes[]? | select(.name | startswith(\"frok \"))' \"$(wt_settings)\" >/dev/null" 'frok apply' ;;
+      wezterm) chk "WezTerm" "true" '' ;;
+      kitty) chk "kitty" "[[ -f ~/.config/kitty/frok.conf ]]" 'frok apply' ;;
+    esac
+  done
+  (( $(terminals_active | wc -l) )) || warn "no supported terminal found (WezTerm, Windows Terminal, kitty) — themes still apply to the shell and prompt"
+  (( ok )) && say "all good"
+}
+
+# ── uninstall ─────────────────────────────────────────────────────────
+uninstall() {
+  local rc
+  for rc in ~/.zshrc ~/.bashrc; do [[ -f $rc ]] && sed -i.bak.frok '/frok\/generated\/init.sh/d' $rc; done
+  companion_hooks none
+  for rc in $(claude_dirs); do [[ -L $rc/skills/frok ]] && rm $rc/skills/frok; done
+  local f=$(wt_settings) orig=$FROK_STATE/wt-original.json
+  if [[ -n $f && -f $orig ]]; then
+    jq --argjson o "$(<$orig)" --arg pet $WT_PET_GUID '
+      .schemes = [.schemes[]? | select(.name | startswith("frok ") | not)]
+      | .profiles.list = [.profiles.list[] | select(.guid != $pet)
+          | . as $p | ($o.profiles | map(select(.guid == $p.guid)) | first) as $was
+          | if $was then (del(.colorScheme, .foreground, .font, .backgroundImage, .backgroundImageOpacity, .backgroundImageStretchMode)
+                          + ($was | with_entries(select(.value != null)))) else . end]
+      | .actions = [.actions[]? | select((.id // "") | startswith("User.frok.") | not)]
+      | .keybindings = $o.keybindings
+      | .defaultProfile = $o.defaultProfile
+      | if $o.startupActions then .startupActions = $o.startupActions else del(.startupActions) end' $f >| $f.frok && mv -f $f.frok $f
+    rm -f $orig; say "Windows Terminal restored"
+  fi
+  local wz=$HOME/.config/wezterm; [[ $OS == wsl ]] && wz="$(win_env USERPROFILE)/.config/wezterm"
+  if grep -qs '^-- managed by frok' $wz/wezterm.lua; then
+    if [[ -f $wz/wezterm.lua.pre-frok ]]; then mv -f $wz/wezterm.lua.pre-frok $wz/wezterm.lua; else rm -f $wz/wezterm.lua; fi
+    say "WezTerm config restored"
+  fi
+  [[ -f ~/.config/kitty/kitty.conf ]] && sed -i.bak.frok '/^include frok.conf$/d' ~/.config/kitty/kitty.conf && rm -f ~/.config/kitty/frok.conf
+  rm -f ~/.local/bin/frok
+  say "frok removed (settings kept in $FROK_CONFIG_DIR; installed tools and fonts stay)"
+}
+
+# ── commands ──────────────────────────────────────────────────────────
+cmd=${1:-}; (( $# )) && shift
+case $cmd in
+  "")
+    cfg_init
+    if [[ $(cfg .configured) != true ]]; then setup
+    elif [[ -n $(claude_choices) && -t 0 ]]; then guide
+    else status; print; usage; fi ;;
+  setup)   setup "$@" ;;
+  status)  status "$@" ;;
+  apply)   apply_all ;;
+  doctor)  doctor ;;
+  help|-h|--help) usage ;;
+
+  theme)
+    if (( ! $# )); then
+      local th; for th in $(theme_names); do load_theme $th; printf '  %-18s %s  %s\n' $th "$(swatch)" "${T[name]}"; done
+      print "\ncurrent: $(cfg .theme)"
+    else theme_file $1 >/dev/null || die "no theme '$1'"; cfg_set .theme "$(jstr $1)"; apply_all; fi ;;
+
+  background|bg)
+    case ${1:-} in
+      "") print "background: $(cfg .background) (opacity $(cfg .background_opacity))" ;;
+      opacity) [[ ${2:-} == (0|1|0.<->|.<->) ]] || die "opacity between 0 and 1"; cfg_set .background_opacity $2; apply_all ;;
+      rain|none) cfg_set .background "$(jstr $1)"; apply_all ;;
+      *) [[ -f $(expand_home $1) ]] || die "no file $1"; cfg_set .background "$(jstr ${1:A})"; apply_all ;;
+    esac ;;
+
+  companion)
+    case ${1:-} in
+      run) companion_run ;;
+      facts) cfg_set .facts $(on_off ${2:-}); say "facts: $(cfg .facts) (restart the companion pane)" ;;
+      "") print "companion: $(cfg .companion)  (available: $(companion_names | tr '\n' ' ')none)" ;;
+      *) [[ $1 == none || -d $FROK_HOME/companions/$1 ]] || die "no companion '$1'"
+         cfg_set .companion "$(jstr $1)"; apply_all ;;
+    esac ;;
+
+  layout)
+    case ${1:-} in
+      "") local l; for l in $(layout_names); do printf '  %-8s %s\n' $l "$(jq -r .about $(layout_file $l))"; done; print "\ncurrent: $(cfg .layout)" ;;
+      open)
+        if [[ -n $(wt_settings) ]]; then
+          local guid=$(jq -r --arg d $WSL_DISTRO_NAME '[.profiles.list[] | select(.name == $d and (.hidden != true)) | .guid][0]' "$(wt_settings)")
+          local line=$(wt_layout_cmdline $guid)
+          powershell.exe -NoProfile -Command "Start-Process wt.exe -ArgumentList '-w new ${line//\'/\'\'}'" && say "opened '$(cfg .layout)' in a new Windows Terminal window"
+        else warn "opening a layout on demand works in Windows Terminal; elsewhere use \`frok layout autostart on\` and restart the terminal"; fi ;;
+      autostart) cfg_set .layout_on_start $(on_off ${2:-}); apply_all ;;
+      *) layout_file $1 >/dev/null || die "no layout '$1'"; cfg_set .layout "$(jstr $1)"; apply_all ;;
+    esac ;;
+
+  claude)  [[ -n ${1:-} ]] && { cfg_set .claude "$(jstr "$*")"; say "the guide opens with: $*"; } || print "claude: $(cfg .claude)  (choices: $(claude_choices | paste -sd, -))" ;;
+  agent)   [[ -n ${1:-} ]] && { cfg_set .agent "$(jstr "$*")"; apply_all; } || print "agent: $(cfg .agent)" ;;
+  workdir) [[ -n ${1:-} ]] && { cfg_set .workdir "$(jstr ${1/#$HOME/~})"; apply_all; } || print "workdir: $(cfg .workdir)" ;;
+  prompt)  [[ ${1:-} == (starship|none) ]] || die "frok prompt starship|none"; cfg_set .prompt "$(jstr $1)"; apply_all ;;
+
+  font)
+    if [[ ${1:-} == size ]]; then [[ ${2:-} == <-> ]] || die "frok font size <n>"; cfg_set .font.size $2
+    elif [[ -n ${1:-} ]]; then cfg_set .font.family "$(jstr $1)"; [[ ${2:-} == <-> ]] && cfg_set .font.size $2
+    else print "font: $(cfg .font.family) $(cfg .font.size)"; return; fi
+    apply_all ;;
+
+  tools)
+    case ${1:-} in
+      "") local t; for t in ${(f)"$(cfg '.tools[]?')"}; do tool_present $t && print "  ✓ $t" || print "  · $t (not installed)"; done ;;
+      install) tools_install; render_shell ;;
+      add)    cfg_set .tools "$(jq -c --arg t $2 '(.tools // []) + [$t] | unique' $FROK_CFG)"; tools_install; render_shell ;;
+      remove) cfg_set .tools "$(jq -c --arg t $2 '(.tools // []) - [$t]' $FROK_CFG)"; render_shell; say "removed $2 from frok (the package stays installed)" ;;
+      *) die "frok tools [install | add <t> | remove <t>]" ;;
+    esac ;;
+
+  terminals)
+    case ${1:-} in
+      "") print "detected: $(terminals_detected | tr '\n' ' ')\nconfigured: $(terminals_active | tr '\n' ' ')" ;;
+      auto) cfg_set .terminals '[]'; apply_all ;;
+      set) shift; cfg_set .terminals "$(print -l $@ | jq -R . | jq -sc .)"; apply_all ;;
+      *) die "frok terminals [set <names…> | auto]" ;;
+    esac ;;
+
+  shell)   [[ ${1:-} == port ]] && { shell_port; exit }; shell_set ${1:-zsh} ${2:-} ;;
+  update)  git -C $FROK_HOME pull --ff-only && exec $FROK_HOME/bin/frok apply ;;
+  uninstall) uninstall ;;
+  *) usage; exit 1 ;;
+esac

@@ -6,7 +6,7 @@
 # plus the legacy global companion.state (used by the WezTerm status-bar face).
 # Fast, and exits 0 no matter what (a hook must never block Claude).
 set -u
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # state lives next to this script
+DIR="${FROK_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/frok}/companion"
 SDIR="$DIR/sessions"
 mkdir -p "$SDIR" 2>/dev/null || exit 0
 command -v jq >/dev/null 2>&1 || exit 0

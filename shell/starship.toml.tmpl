@@ -1,8 +1,8 @@
-# ~/.config/starship.toml — Tokyo Night theme
+# frok starship template — {{key}} is filled from the active theme.
 add_newline = true
 
 format = """
-[](#7aa2f7)\
+[]({{accent}})\
 $directory\
 $git_branch\
 $git_status\
@@ -11,24 +11,24 @@ $cmd_duration \
 $character"""
 
 [character]
-success_symbol = "[❯](bold #9ece6a)"
-error_symbol = "[❯](bold #f7768e)"
-vicmd_symbol = "[❮](bold #e0af68)"
+success_symbol = "[❯](bold {{a2}})"
+error_symbol = "[❯](bold {{a1}})"
+vicmd_symbol = "[❮](bold {{a3}})"
 
 [directory]
-style = "bg:#7aa2f7 fg:#1a1b26"
-format = "[ $path ]($style)[](fg:#7aa2f7 bg:#3b4261)"
+style = "bg:{{accent}} fg:{{bg}}"
+format = "[ $path ]($style)[](fg:{{accent}} bg:{{border}})"
 truncation_length = 0          # show the whole path, like Windows
 truncate_to_repo = false
 read_only = " "
 
 [git_branch]
 symbol = " "
-style = "bg:#3b4261 fg:#bb9af7"
-format = "[ $symbol$branch ]($style)[](fg:#3b4261)"
+style = "bg:{{border}} fg:{{accent2}}"
+format = "[ $symbol$branch ]($style)[](fg:{{border}})"
 
 [git_status]
-style = "fg:#e0af68"
+style = "fg:{{a3}}"
 format = "[ $all_status$ahead_behind]($style)"
 conflicted = "="
 ahead = "⇡${count}"
@@ -43,10 +43,10 @@ deleted = "✘${count}"
 
 [nodejs]
 symbol = " "
-style = "fg:#9ece6a"
+style = "fg:{{a2}}"
 format = "[ $symbol($version) ]($style)"
 
 [cmd_duration]
 min_time = 2000
-style = "fg:#565f89"
+style = "fg:{{muted}}"
 format = "[ took $duration ]($style)"

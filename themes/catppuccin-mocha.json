@@ -1,0 +1,7 @@
+{
+  "name": "Catppuccin Mocha",
+  "bg": "#1e1e2e", "fg": "#cdd6f4", "cursor": "#f5e0dc", "selection": "#585b70",
+  "ansi":    ["#45475a", "#f38ba8", "#a6e3a1", "#f9e2af", "#89b4fa", "#f5c2e7", "#94e2d5", "#bac2de"],
+  "brights": ["#585b70", "#f38ba8", "#a6e3a1", "#f9e2af", "#89b4fa", "#f5c2e7", "#94e2d5", "#a6adc8"],
+  "ui": { "surface": "#181825", "muted": "#6c7086", "accent": "#89b4fa", "accent2": "#cba6f7", "border": "#313244", "hover": "#313244" }
+}

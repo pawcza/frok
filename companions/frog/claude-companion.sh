@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env zsh
 # claude-companion — live animated terminal pet that watches your Claude Code
 # sessions. Sessions are discovered from WezTerm panes running `claude`, and
 # enriched by each session's hook (companion-event.sh → sessions/<id>) with
@@ -8,8 +8,9 @@
 emulate -L zsh
 setopt extendedglob
 zmodload zsh/datetime 2>/dev/null
-HERE=${0:A:h}                       # files live next to this script (symlinks resolved)
-SDIR="$HERE/sessions"
+HERE=${0:A:h}                       # frog.txt lives next to this script (symlinks resolved)
+STATE=${FROK_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/frok}/companion
+SDIR="$STATE/sessions"              # written by companion-event.sh
 WZ=/Applications/WezTerm.app/Contents/MacOS/wezterm; [[ -x $WZ ]] || WZ=wezterm
 KT=/Applications/kitty.app/Contents/MacOS/kitten;     [[ -x $KT ]] || KT=kitten
 # Which terminal are we in? Each companion lists, focuses and prunes only its
@@ -38,11 +39,22 @@ US=$'\x1f'; TAB=$'\t'
 G=$'\e[32m'; L=$'\e[34m'; D=$'\e[90m'; W=$'\e[39m'
 Y=$'\e[33m'; C=$'\e[36m'; R=$'\e[31m'; M=$'\e[35m'; X=$'\e[0m'
 
+# Pane shortcuts for the footer, as frok set them up for this terminal
+# ("key=label;key=label…" in generated/keys.txt).
+KEYS=""
+KEYSFILE=${FROK_GEN:-$HOME/.config/frok/generated}/keys.txt
+if [[ -r $KEYSFILE ]]; then
+  for kv in ${(s:;:)"$(<$KEYSFILE)"}; do KEYS+="${C}${kv%%=*}${X}${D} ${kv#*=}${X}  "; done
+  KEYS=${KEYS%  }
+fi
+
 # ── useless facts (fetched in the background, one in flight at a time) ──
 FACTFILE="${TMPDIR:-/tmp}/claude-companion-fact.$$"
 FACTLOCK="$FACTFILE.lock"
 FACT_URL="https://uselessfacts.jsph.pl/api/v2/facts/random?language=en"
+FACTS=${FROK_FACTS:-true}
 fetch_fact() {
+  [[ $FACTS == true ]] || return
   [[ -e "$FACTLOCK" ]] && return
   : >| "$FACTLOCK"
   printf '%s' "fetching a new fact…" >| "$FACTFILE"
@@ -332,6 +344,7 @@ while true; do
   fi
   factrow=$(( ${#info} + 1 ))
   fact=$(< "$FACTFILE" 2>/dev/null); [[ -z "$fact" ]] && fact="fetching a useless fact…"
+  [[ $FACTS == true ]] || fact="facts are off (frok companion facts on)"
   if [[ "$fact" != "$lastfact" || $iw -ne ${lastiw:-0} ]]; then
     flines=("${(@f)$(print -r -- "$fact" | fold -s -w $(( iw - 2 )))}")
     lastfact=$fact; lastiw=$iw
@@ -343,7 +356,7 @@ while true; do
   else fout+=("  ${D}${hint}${X}"); fi
   info+=("${fout[@]}")
   factend=${#info}
-  info+=("${C}⌘D${X}${D} split→${X}  ${C}⌘⇧D${X}${D} split↓${X}  ${C}⌘⌥←↑↓→${X}${D} move${X}  ${C}⌘⇧W${X}${D} close pane${X}")
+  [[ -n $KEYS ]] && info+=("$KEYS")
   info+=("${D}frog: ${W}f${D} fly  ${W}w${D} wink  ${W}g${D} googly  ${W}l${D} look  ${W}r${D} roll  ${W}t${D} tongue  ${W}y${D} yay  ${W}x${D} dead  ${W}d${D} dizzy  ${W}z${D} nap${X}")
 
   (( nrows = ${#info} > 6 ? ${#info} : 6 ))

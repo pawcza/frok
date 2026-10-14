@@ -1,0 +1,7 @@
+{
+  "name": "Matrix",
+  "bg": "#000000", "fg": "#00ff41", "cursor": "#00ff41", "selection": "#005f15",
+  "ansi":    ["#0d0d0d", "#00a32e", "#00ff41", "#39ff14", "#005f15", "#00c853", "#1bff6b", "#9dffb0"],
+  "brights": ["#1a1a1a", "#00c853", "#39ff14", "#6bff7a", "#008f28", "#00e676", "#4dff88", "#cfffd8"],
+  "ui": { "surface": "#0a0a0a", "muted": "#00a32e", "accent": "#00c853", "accent2": "#39ff14", "border": "#005f15", "hover": "#003b0d" }
+}

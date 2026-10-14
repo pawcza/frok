@@ -1,0 +1,21 @@
+{
+  "name": "side",
+  "about": "Agent on the left half; right half split into companion on top, a shell below.",
+  "panes": [
+    { "id": "main", "run": "agent" },
+    { "id": "pet", "split": "main", "dir": "right", "size": 0.5, "run": "companion" },
+    { "id": "shell", "split": "pet", "dir": "down", "size": 0.5, "run": "shell" }
+  ],
+  "focus": "main",
+  "diagram": [
+    "┌───────────┬───────────┐",
+    "│           │           │",
+    "│           │ companion │",
+    "│           │           │",
+    "│   agent   ├───────────┤",
+    "│           │           │",
+    "│           │   shell   │",
+    "│           │           │",
+    "└───────────┴───────────┘"
+  ]
+}

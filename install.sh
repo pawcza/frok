@@ -1,74 +1,85 @@
-#!/usr/bin/env bash
-# install.sh — set up the frog companion for Claude Code (macOS, Linux, WSL).
+#!/bin/sh
+# frok bootstrap — gets a bare machine to the point where `frok` runs, then
+# starts the guided setup. Everything else (fonts, CLI tools, prompt,
+# backgrounds, companion hooks) is installed by frok itself as you pick it.
 #
-#   ./install.sh               install / update
-#   ./install.sh --uninstall   remove the hooks and the `companion` command
+#   git clone https://github.com/pawcza/frok && ./frok/install.sh
+#   curl -fsSL https://raw.githubusercontent.com/pawcza/frok/main/install.sh | sh
 #
 # Env overrides:
-#   FROG_HOME        where the scripts live      (default ~/.config/terminal)
-#   CLAUDE_SETTINGS  which settings.json to hook (default $CLAUDE_CONFIG_DIR or ~/.claude)
-set -euo pipefail
+#   FROK_HOME   where frok lives        (default: this clone, else ~/.local/share/frok)
+#   FROK_REPO   what to clone            (default: https://github.com/pawcza/frok.git)
+#   FROK_NO_SETUP=1   install only, don't start the setup
+set -eu
 
-SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEST="${FROG_HOME:-$HOME/.config/terminal}"
-SETTINGS="${CLAUDE_SETTINGS:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json}"
+REPO=${FROK_REPO:-https://github.com/pawcza/frok.git}
 BIN="$HOME/.local/bin"
-HOOK="$DEST/companion-event.sh"
-EVENTS='["SessionStart","SessionEnd","UserPromptSubmit","PreToolUse","PostToolUse","PostToolUseFailure","PermissionRequest","Notification","SubagentStart","SubagentStop","PreCompact","Stop"]'
 
-say() { printf '\033[32m✓\033[0m %s\n' "$*"; }
-die() { printf '\033[31m✗\033[0m %s\n' "$*" >&2; exit 1; }
+say()  { printf '\033[32m✓\033[0m %s\n' "$*"; }
+step() { printf '\033[36m→\033[0m %s\n' "$*"; }
+die()  { printf '\033[31m✗\033[0m %s\n' "$*" >&2; exit 1; }
+has()  { command -v "$1" >/dev/null 2>&1; }
 
-backup_settings() { [ -f "$SETTINGS" ] && cp "$SETTINGS" "$SETTINGS.bak.frog-$(date +%Y%m%d%H%M%S)"; }
+as_root() {
+  if [ "$(id -u)" = 0 ]; then "$@"
+  elif has sudo; then sudo "$@"
+  else die "need root to run: $* (no sudo found)"; fi
+}
 
-if [ "${1:-}" = "--uninstall" ]; then
-  command -v jq >/dev/null || die "jq is needed to edit $SETTINGS"
-  if [ -f "$SETTINGS" ]; then
-    backup_settings
-    jq --arg cmd "$HOOK" '
-      if .hooks then .hooks |= (with_entries(
-        .value |= (map(.hooks |= map(select(.command != $cmd))) | map(select((.hooks | length) > 0))))
-        | with_entries(select((.value | length) > 0))) else . end' "$SETTINGS" > "$SETTINGS.tmp"
-    mv "$SETTINGS.tmp" "$SETTINGS"; say "removed the hooks from $SETTINGS"
-  fi
-  rm -f "$BIN/companion"; say "removed $BIN/companion"
-  echo "  (scripts left in $DEST; delete that folder if you don't want them)"
-  exit 0
+# ── which system ──────────────────────────────────────────────────────
+case "$(uname -s)" in
+  Darwin) OS=macos ;;
+  Linux)  if grep -qi microsoft /proc/version 2>/dev/null; then OS=wsl; else OS=linux; fi ;;
+  MINGW*|MSYS*|CYGWIN*)
+    die "frok runs inside WSL on Windows. Install it with \`wsl --install\`, open Ubuntu, and run this again there." ;;
+  *) die "unsupported system: $(uname -s)" ;;
+esac
+step "system: $OS"
+
+# ── frok's own needs: git curl jq zsh unzip ───────────────────────────
+need=""
+for c in git curl jq zsh unzip; do has "$c" || need="$need $c"; done
+if [ -n "$need" ]; then
+  step "installing:$need"
+  if [ "$OS" = macos ]; then
+    if ! has brew; then
+      step "installing Homebrew (it asks for your password)"
+      /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" </dev/tty
+      [ -x /opt/homebrew/bin/brew ] && eval "$(/opt/homebrew/bin/brew shellenv)"
+      [ -x /usr/local/bin/brew ] && eval "$(/usr/local/bin/brew shellenv)"
+    fi
+    # shellcheck disable=SC2086
+    brew install $need
+  elif has apt-get; then as_root apt-get update -qq && as_root apt-get install -y $need
+  elif has dnf;     then as_root dnf install -y $need
+  elif has pacman;  then as_root pacman -S --needed --noconfirm $need
+  elif has zypper;  then as_root zypper install -y $need
+  elif has apk;     then as_root apk add $need
+  else die "no package manager I know; install:$need"; fi
 fi
+for c in git curl jq zsh unzip; do has "$c" || die "$c still missing"; done
+say "git, curl, jq, zsh, unzip"
 
-# ── dependencies ──────────────────────────────────────────────────────
-missing=()
-for c in zsh jq curl fold; do command -v "$c" >/dev/null 2>&1 || missing+=("$c"); done
-if [ ${#missing[@]} -gt 0 ]; then
-  echo "Missing: ${missing[*]}"
-  if command -v brew >/dev/null; then echo "  brew install ${missing[*]}"
-  elif command -v apt-get >/dev/null; then echo "  sudo apt install ${missing[*]}"
-  elif command -v dnf >/dev/null; then echo "  sudo dnf install ${missing[*]}"; fi
-  exit 1
+# ── frok itself ───────────────────────────────────────────────────────
+HERE=$(cd "$(dirname "$0")" 2>/dev/null && pwd || true)
+if [ -n "${FROK_HOME:-}" ]; then :
+elif [ -n "$HERE" ] && [ -f "$HERE/bin/frok" ]; then FROK_HOME=$HERE      # running from a clone
+else FROK_HOME="$HOME/.local/share/frok"; fi
+if [ ! -f "$FROK_HOME/bin/frok" ]; then
+  step "cloning frok into $FROK_HOME"
+  git clone -q "$REPO" "$FROK_HOME"
 fi
+mkdir -p "$BIN"
+ln -sf "$FROK_HOME/bin/frok" "$BIN/frok"
+say "frok → $BIN/frok"
 
-# ── files ─────────────────────────────────────────────────────────────
-mkdir -p "$DEST/sessions" "$BIN"
-install -m 0755 "$SRC/claude-companion.sh" "$DEST/claude-companion.sh"
-install -m 0755 "$SRC/companion-event.sh"  "$DEST/companion-event.sh"
-install -m 0644 "$SRC/frog.txt"            "$DEST/frog.txt"
-ln -sf "$DEST/claude-companion.sh" "$BIN/companion"
-say "installed into $DEST"
-say "linked the \`companion\` command into $BIN"
-case ":$PATH:" in *":$BIN:"*) ;; *) echo "  note: add $BIN to your PATH to run \`companion\`" ;; esac
+# ~/.local/bin on PATH for every shell frok may configure
+for rc in "$HOME/.zshrc" "$HOME/.bashrc"; do
+  [ -f "$rc" ] || [ "$rc" = "$HOME/.zshrc" ] || continue
+  grep -qs 'HOME/.local/bin' "$rc" || printf '\nexport PATH="$HOME/.local/bin:$PATH"\n' >> "$rc"
+done
 
-# ── Claude Code hooks (added alongside any you already have) ──────────
-mkdir -p "$(dirname "$SETTINGS")"
-[ -f "$SETTINGS" ] || echo '{}' > "$SETTINGS"
-backup_settings
-jq --arg cmd "$HOOK" --argjson evs "$EVENTS" '
-  .hooks //= {} |
-  reduce $evs[] as $e (.;
-    if ([.hooks[$e][]?.hooks[]?.command] | index($cmd)) then .
-    else .hooks[$e] = ((.hooks[$e] // []) + [{"matcher": "", "hooks": [{"type": "command", "command": $cmd, "timeout": 5, "async": true}]}])
-    end)' "$SETTINGS" > "$SETTINGS.tmp"
-mv "$SETTINGS.tmp" "$SETTINGS"
-say "hooked $(jq -r --arg cmd "$HOOK" '[.hooks[] | select(any(.[]; any(.hooks[]?; .command == $cmd)))] | length' "$SETTINGS") Claude Code events in $SETTINGS"
-
-echo
-echo "Run \`companion\` in a terminal pane. Sessions started before this show up once they do something."
+[ "${FROK_NO_SETUP:-}" = 1 ] && { say "installed. Run \`frok\` to set up."; exit 0; }
+step "starting setup"
+if [ -t 0 ]; then exec "$FROK_HOME/bin/frok" setup
+else exec "$FROK_HOME/bin/frok" setup </dev/tty; fi

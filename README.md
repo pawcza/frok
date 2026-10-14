@@ -1,83 +1,99 @@
-# frog-companion
+# frok
 
-A tiny terminal pet that keeps an eye on your Claude Code sessions.
+A terminal upgrade you set up once and then steer by asking. One command
+installs what it needs, and Claude Code walks you through the choices:
+colour theme, animated background, a pet that watches your Claude Code
+sessions, pane layouts, prompt, font, CLI tools. Run `frok` again any time to
+change something.
 
 ```
-    hey!    _     _            ● Upgrade terminal with animations…   working      Edit wezterm.lua      4s
-           (')-=-(-)           ● Set up persona project              needs you    needs permission: $ npm run dev
-         __(   "   )__         ● Find song with seize to exist…      background   2 background tasks running
+    hey!    _     _            ● frok        working      Edit wezterm.lua      4s
+           (')-=-(-)           ● persona     needs you    needs permission: $ npm run dev
+         __(   "   )__         ● spot        background   2 background tasks running
         / _/'-----'\_ \        ✶ The dot over the letter "i" is called a tittle.   space → new fact
-     ___\\ \\     // //___     ⌘D split→  ⌘⇧D split↓  ⌘⌥←↑↓→ move  ⌘⇧W close pane
-     >____)/_\---/_\(____<     frog: f fly  w wink  g googly  l look  r roll  t tongue  y yay  x dead  d dizzy  z nap
+     ___\\ \\     // //___     Alt+D split→  Alt+⇧D split↓  Alt+←↑↓→ move  Ctrl+⇧W close pane
+     >____)/_\---/_\(____<     frog: f fly  w wink  g googly  l look  r roll  t tongue  y yay  x dead
 ```
-
-Run `companion` in a spare pane. It lists every Claude Code session with what
-it's doing right now (the file it's editing, the command it's running, the
-prompt you gave it), and the frog's face follows the most urgent one:
-
-| Session state | Frog |
-|---|---|
-| needs you (permission prompt / question) | wide `O O` eyes, open mouth, flashing `!` |
-| error | `x x` eyes, tongue out, `x_x`, a shiver |
-| working | squinting `> <`, moving mouth, spinner |
-| thinking | drifting eyes, `?` `..` `...` |
-| compacting | spinning `@ o O` eyes |
-| background tasks still running | calm, `..` |
-| just finished | `^ ^`, smile, "yay!" and sparkles |
-| nothing for 10 minutes | asleep, `z Z z` |
-
-When nothing's going on she does random tricks (winks, googly eyes, eye rolls,
-tongue, hunting a fly), and she doesn't like being poked: click her a few times
-and she gets annoyed, then angry, then she leaves for a bit.
-
-## Keys and mouse
-
-| | |
-|---|---|
-| `space` | new useless fact ([uselessfacts.jsph.pl](https://uselessfacts.jsph.pl/)) |
-| `f w g l r t y x d z` | tricks: fly, wink, googly, look, roll, tongue, yay, dead, dizzy, nap |
-| click a session | jump to its pane (WezTerm, kitty) |
-| click the frog | annoy her |
-| `Ctrl+C` | quit |
 
 ## Install
 
-Needs `zsh`, `jq`, `curl` (and `fold`, which every system has).
-
 ```sh
-git clone git@github.com:pawcza/frog-companion.git
-cd frog-companion
-./install.sh
+git clone https://github.com/pawcza/frok && ./frok/install.sh
 ```
 
-This copies the scripts to `~/.config/terminal`, links a `companion` command
-into `~/.local/bin`, and adds a hook to `~/.claude/settings.json` for the
-Claude Code events the companion listens to. Your existing hooks are kept, and
-a backup of `settings.json` is saved next to it. Run it again to update;
-`./install.sh --uninstall` removes the hooks and the command.
+The installer gets `git curl jq zsh unzip` with your package manager (Homebrew,
+apt, dnf, pacman, zypper, apk — installing Homebrew first on a bare Mac), puts
+`frok` in `~/.local/bin`, and starts the setup: six steps in the terminal
+(theme, background, companion, layout, prompt, font), each applied as you pick
+it, then an offer to keep going with Claude Code. It asks for your password only
+when the system needs it. Everything else — fonts, CLI tools, starship,
+Pillow for the backgrounds, Claude Code hooks — frok installs itself when you
+pick it.
 
-Sessions that were already running pick up the hook the next time they do
-something.
+On Windows, run it inside WSL (Ubuntu). frok configures Windows Terminal and
+WezTerm on the Windows side from there, and installs fonts for your Windows
+user (no admin needed).
 
-If you use several Claude Code config directories (e.g. with `ccs` profiles),
-point the installer at the right one: `CLAUDE_SETTINGS=/path/to/settings.json ./install.sh`.
+## Using it
+
+`frok` opens the guide: Claude Code with the `frok` skill, which asks what you
+want and runs the commands below. `frok setup` runs the step-by-step setup
+again. Every choice also has a direct command:
+
+| | |
+|---|---|
+| `frok theme [name]` | colour theme for the terminal, prompt, fzf and companion — tokyo-night, catppuccin-mocha, gruvbox-dark, dracula, matrix |
+| `frok background rain\|none\|<file>` | seamless digital rain recoloured to the theme, any image or GIF, or nothing · `frok background opacity 0.2` |
+| `frok companion frog\|none` | the session pet · `frok companion facts on\|off` |
+| `frok layout [name]` | `single`, `side`, `quad` (the MacBook one), `grid` · `frok layout open` · `frok layout autostart on` |
+| `frok agent "<cmd>"` | what agent panes run (default `claude`, e.g. `ccs personal`) · `frok workdir ~/dev` |
+| `frok prompt starship\|none` | |
+| `frok font "<family>" [size]` | Nerd Fonts download automatically |
+| `frok tools [install\|add\|remove]` | eza, bat, fd, zoxide, ripgrep, fzf, delta, lazygit, gh, btop, tldr, zsh-autosuggestions |
+| `frok terminals [set …\|auto]` | which terminals to configure (detected by default) |
+| `frok status`, `frok doctor`, `frok apply`, `frok update`, `frok uninstall` | |
+
+Your own themes and layouts go in `~/.config/frok/themes/*.json` and
+`~/.config/frok/layouts/*.json` (copy one from this repo). Settings live in
+`~/.config/frok/frok.json`.
 
 ## Terminals
 
-| | Session names | Click to jump | |
-|---|---|---|---|
-| **WezTerm** | pane titles | ✅ | `wezterm cli` |
-| **kitty** | window titles | ✅ | needs `allow_remote_control` + `listen_on` |
-| **anything else** (Windows Terminal + WSL, iTerm, Terminal.app…) | the session's folder | — | found by tty |
+| | Theme, font, keys | Background | Layouts | Companion: click to jump |
+|---|---|---|---|---|
+| **WezTerm** (macOS, Linux, Windows) | ✓ | animated, tiled | on start | ✓ |
+| **Windows Terminal** (from WSL) | ✓ | animated | on start, `frok layout open`, Ctrl+⇧L | — |
+| **kitty** | ✓ | — | — | ✓ |
+| anything else | prompt, tools, companion | — | — | — |
 
-Works on macOS, Linux and WSL, as long as Claude Code runs on the same machine
-as the companion (inside WSL, not on the Windows side).
+The same pane keys everywhere: ⌘ on macOS, Alt elsewhere — split right
+(⌘D / Alt+D), split down (+⇧), move (⌘⌥ / Alt + arrows), resize (⌘⇧ / Alt+⇧ +
+arrows), close (⌘⇧W / Ctrl+⇧W), zoom (⌘Z / Alt+Z), companion pane (⌘⇧K /
+Ctrl+⇧K).
 
-## How it works
+## What frok touches
 
-`companion-event.sh` is the Claude Code hook. For each event it writes one line
-per session to `sessions/<session id>`: the time, a state, which pane it's in,
-the folder, and a short description of what it's doing. It never stores prompts
-in full, file contents or command output, and it always exits 0 so it can't
-slow down or block Claude. `claude-companion.sh` reads those files, works out
-which panes are still running Claude, and draws the frog.
+frok owns its own files and marked blocks and keeps backups:
+
+- one line in `~/.zshrc` / `~/.bashrc` that sources `~/.config/frok/generated/init.sh`
+- WezTerm: `wezterm.lua` (yours is kept as `wezterm.lua.pre-frok`; personal
+  tweaks go in `frok-local.lua`)
+- Windows Terminal: a `frok <theme>` scheme, a hidden `frok companion` profile,
+  `User.frok.*` actions and keys, and the look of your WSL profile (originals
+  saved, `frok uninstall` puts them back; a backup of every write in
+  `~/.local/state/frok/backups`)
+- kitty: `frok.conf`, included from `kitty.conf`
+- Claude Code: the companion hook and the `frok` skill in every config dir
+  (`~/.claude`, `$CLAUDE_CONFIG_DIR`, ccs profiles)
+
+## The companion
+
+`companion-event.sh` is a Claude Code hook. For each event it writes one line
+per session to `~/.local/state/frok/companion/sessions/<id>`: time, state,
+pane, folder, and a short description (the file being edited, the command
+running). It never stores full prompts, file contents or output, and always
+exits 0 so it can't slow Claude down. The frog's face follows the most urgent
+session: needs you → wide eyes, error → x_x, working → squinting, done → yay.
+Poke her a few times and she leaves for a bit.
+
+`docs/` keeps the original MacBook setup notes this grew out of.
