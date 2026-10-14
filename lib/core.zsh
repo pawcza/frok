@@ -74,7 +74,7 @@ pkg_name() {
   local t=$1
   case "$PM:$t" in
     apt:fd) print fd-find ;;           apt:delta) print git-delta ;;
-    apt:lazygit|apt:starship) print - ;;
+    apt:lazygit|apt:starship) print -r -- - ;;
     apt:autosuggestions) print zsh-autosuggestions ;;
     brew:autosuggestions) print zsh-autosuggestions ;;
     brew:tldr) print tlrc ;;           brew:delta) print git-delta ;;
