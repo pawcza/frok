@@ -5,6 +5,8 @@ FROK_STATE=${FROK_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/frok}
 FROK_CFG=$FROK_CONFIG_DIR/frok.json
 FROK_GEN=$FROK_CONFIG_DIR/generated          # files frok writes and other configs include
 mkdir -p $FROK_CONFIG_DIR $FROK_STATE/companion/sessions $FROK_GEN
+# direct installs land in ~/.local/bin, which a fresh shell may not have on PATH yet
+(( ${path[(Ie)$HOME/.local/bin]} )) || path=($HOME/.local/bin $path)
 
 say()  { print -P "%F{green}✓%f $*"; }
 step() { print -P "%F{cyan}→%f $*"; }
