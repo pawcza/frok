@@ -122,7 +122,7 @@ pkg_install() {
     step "installing ${(j:, :)names}"
     case $PM in
       brew)   brew install $names ;;
-      apt)    (( _pm_updated++ )) || as_root apt-get update -qq; as_root apt-get install -y $names ;;
+      apt)    (( _pm_updated++ )) || as_root apt-get update -qq; as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y $names ;;
       dnf)    as_root dnf install -y $names ;;
       pacman) as_root pacman -S --needed --noconfirm $names ;;
       zypper) as_root zypper install -y $names ;;
@@ -131,7 +131,7 @@ pkg_install() {
       # one unknown name fails the whole batch on most package managers: go one by one
       local n1; for n1 in $names; do
         case $PM in
-          brew) brew install $n1 ;;  apt) as_root apt-get install -y $n1 ;;  dnf) as_root dnf install -y $n1 ;;
+          brew) brew install $n1 ;;  apt) as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y $n1 ;;  dnf) as_root dnf install -y $n1 ;;
           pacman) as_root pacman -S --needed --noconfirm $n1 ;;  zypper) as_root zypper install -y $n1 ;;  apk) as_root apk add $n1 ;;
         esac >/dev/null 2>&1 || warn "couldn't install $n1 with $PM"
       done

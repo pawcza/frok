@@ -50,7 +50,7 @@ if [ -n "$need" ]; then
     fi
     # shellcheck disable=SC2086
     brew install $need
-  elif has apt-get; then as_root apt-get update -qq && as_root apt-get install -y $need
+  elif has apt-get; then as_root apt-get update -qq && as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y $need
   elif has dnf;     then as_root dnf install -y $need
   elif has pacman;  then as_root pacman -S --needed --noconfirm $need
   elif has zypper;  then as_root zypper install -y $need
