@@ -98,6 +98,7 @@ guide() {
 
 setup() {
   cfg_init
+  { : </dev/tty } 2>/dev/null || die "setup asks questions, so it needs a terminal: run \`frok setup\` in a terminal window"
   wz_welcome
   wz_ready
   prepare
