@@ -1,5 +1,4 @@
-# runtime state written by the hook
-sessions/
-companion.state
+# runtime files
 *.bak*
 .DS_Store
+__pycache__/
