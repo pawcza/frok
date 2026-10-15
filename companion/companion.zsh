@@ -21,8 +21,8 @@ G=$'\e[32m'; L=$'\e[34m'; D=$'\e[90m'; W=$'\e[39m'
 Y=$'\e[33m'; C=$'\e[36m'; R=$'\e[31m'; M=$'\e[35m'; X=$'\e[0m'
 
 # the pieces, in dependency order: the pet and the chips are set up when sourced
-for f in panes pet ui usage facts sessions render input; do source $HERE/parts/$f.zsh; done
-fetch_fact
+for f in panes pet ui sessions widgets render input; do source $HERE/parts/$f.zsh; done
+dashboard_load
 
 # hide cursor + SGR mouse reporting (clicks arrive as \e[<b;x;yM). Echo stays
 # off for the whole run, otherwise mouse/scroll reports that land between reads

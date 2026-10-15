@@ -13,10 +13,11 @@ frok — terminal setup and settings
   frok doctor               check the install
 
   frok theme [name]                         colour theme (no name: list with swatches)
-  frok background rain|none|<file>          background (rain is recoloured per theme)
+  frok background <effect>|none|<file>      animated, recoloured per theme: rain starfield snow aurora synthwave
   frok background opacity <0-1>
   frok companion <pet>|none                 the Claude Code session pet (frok cat ghost robot octopus)
   frok companion facts on|off               useless facts in the companion
+  frok dashboard [add|remove|move|set|reset] the widgets under the sessions (no args: list)
   frok layout [name]                        pane layout (no name: list)
   frok layout open                          open the layout now (Windows Terminal)
   frok layout autostart on|off              build it when the terminal starts
@@ -98,10 +99,12 @@ status_json() {
      --argjson themes "$(theme_names | jq -R . | jq -s .)" \
      --argjson layouts "$(for l in $(layout_names); do jq -c '{name, about}' $(layout_file $l); done | jq -s .)" \
      --argjson comps "$(companion_names | jq -R . | jq -s .)" \
+     --argjson bgs "$(bg_effects | jq -R . | jq -s .)" \
+     --argjson widgets "$(widget_names | jq -R . | jq -s .)" \
      --argjson claude "$(has claude && print true || print false)" '
     {configured: ($cfg.configured // false), os:$os, package_manager:$pm, frok_home:$home, login_shell:$shell,
      claude_code:$claude, terminals:{detected:$det, configured:$act}, settings:($cfg | del(.configured)),
-     available:{themes:$themes, layouts:$layouts, companions:($comps + ["none"]), backgrounds:["rain","none","<path to image/gif>"],
+     available:{themes:$themes, layouts:$layouts, companions:($comps + ["none"]), widgets:$widgets, backgrounds:($bgs + ["none","<path to image/gif>"]),
        prompts:["starship","none"], fonts:["CaskaydiaCove Nerd Font","JetBrainsMono Nerd Font","FiraCode Nerd Font","Hack Nerd Font","MesloLGS Nerd Font","<any installed font>"],
        tools:["eza","bat","fd","zoxide","ripgrep","fzf","delta","lazygit","gh","btop","tldr","autosuggestions"]}}'
 }

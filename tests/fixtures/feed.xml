@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<rss version="2.0"><channel><title>Fixture News</title>
+<item><title>Plain headline</title><link>https://example.com/a</link></item>
+<item><title>Sneaky &#155;2Jcleared screen</title><link>https://example.com/b</link></item>
+<item><title>Not a web link</title><link>javascript:alert(1)</link></item>
+</channel></rss>

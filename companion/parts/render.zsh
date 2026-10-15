@@ -1,5 +1,5 @@
-# render.zsh — one frame: the pet and the sessions beside it, then the footer
-# (fact, stats, limits, keys, tricks), drawn only where it changed.
+# render.zsh — one frame: the pet and the sessions beside it, then the
+# dashboard's widgets, drawn only where it changed.
 
 draw_frame() {
   (( tick % 10 == 0 )) && { refresh_panes; update_size; }
@@ -68,52 +68,12 @@ draw_frame() {
     fi
   fi
 
-  (( tick % 300 == 0 )) && run_stats
-  (( tick % 25 == 0 )) && { refresh_stats; refresh_limits; }
+  # the dashboard: whichever widgets frok.json lists, in its order
+  (( tick % 5 == 0 )) && dashboard_load
+  refresh_widgets
   (( cw = fw - LW ))
-  fact=""; [[ -r $FACTFILE ]] && fact=$(< $FACTFILE); [[ -z "$fact" ]] && fact="fetching a useless fact…"
-  [[ $FACTS == true ]] || fact="facts are off (frok companion facts on)"
-  if [[ "$fact" != "$lastfact" || $fw -ne ${lastfw:-0} ]]; then
-    flines=("${(@f)$(print -r -- "$fact" | fold -s -w $cw)}")
-    pack $cw "${keyitems[@]}"; keylines=("${packed[@]}"); keypos=("${packpos[@]}")
-    pack $cw "${trickitems[@]}"; tricklines=("${packed[@]}"); trickpos=("${packpos[@]}")
-    lastfact=$fact; lastfw=$fw
-  fi
   out=()
-  hint="space → new fact"
-  fl=(); for fln in "${flines[@]}"; do fl+=("${L}${fln}${X}"); done
-  if (( ${#flines[-1]} + 3 + ${#hint} <= cw )); then fl[-1]+="   ${D}${hint}${X}"; else fl+=("${D}${hint}${X}"); fi
-  section fact "${fl[@]}"
-
-  # stats: period tabs, then the numbers (on their own line when narrow)
-  tabs=""; tabx=(); (( x = LW + 1 ))
-  for (( k = 1; k <= 3; k++ )); do
-    tabx+=("$x:$(( x + ${#plabel[k]} + 1 ))"); (( x += ${#plabel[k]} + 3 ))
-    (( k == pi )) && tabs+="${KB}${ACC}"$'\e[1m'" ${plabel[k]} ${X} " || tabs+="${D} ${plabel[k]} ${X} "
-  done
-  (( tabw = 3 * 2 + ${#${(j::)plabel}} + 3 ))
-  if (( ${#statvals} == 3 )); then
-    IFS=$TAB read -r stok sadd sdel scom <<< "${statvals[pi]}"
-    nums="${W}$(human $stok)${X}${D} tokens${X}   ${G}+$(human $sadd)${X} ${R}−$(human $sdel)${X}${D} lines${X}   ${W}${scom}${X}${D} commit$( (( scom == 1 )) || print -n s)${X}"
-    numw=$(( ${#$(human $stok)} + 7 + 3 + ${#$(human $sadd)} + ${#$(human $sdel)} + 9 + 3 + ${#scom} + 8 ))
-  else nums="${D}counting… (first pass reads all your transcripts)${X}"; numw=49; fi
-  statsrow=$(( ${#out} + 1 ))
-  if (( tabw + 2 + numw <= cw )); then section stats "$tabs  $nums"; else section stats "$tabs" "$nums"; fi
-
-  if (( ${#lim} )); then
-    lrow=""
-    [[ -n ${lim[1]} ]] && { (( EPOCHSECONDS >= ${lim[2]:-0} )) && lim[1]=0
-      lrow+="${D}5h ${X}$(bar ${lim[1]})${D}  resets in $(dur $(( ${lim[2]:-0} - EPOCHSECONDS )))${X}"; }
-    [[ -n ${lim[3]} ]] && { (( EPOCHSECONDS >= ${lim[4]:-0} )) && lim[3]=0
-      lrow+="${lrow:+     }${D}7d ${X}$(bar ${lim[3]})${D}  resets $(strftime '%a %H:%M' ${lim[4]:-0})${X}"; }
-    section limits "$lrow"
-  else
-    section limits "${D}shows after Claude's next reply (needs a Pro/Max plan)${X}"
-  fi
-  keysrow=$(( ${#out} + 1 ))
-  section keys "${keylines[@]}"
-  tricksrow=$(( ${#out} + 1 ))
-  section $PET_LABEL "${tricklines[@]}"
+  draw_widgets
 
   build_frog
   # the frog sits in a frame the colour of the label chips
@@ -127,7 +87,7 @@ draw_frame() {
     (( th = ${#sess} > 8 ? ${#sess} : 8 ))
     for (( i = 1; i <= th; i++ )); do lines+=("${frame[$i]:-${(r:33:)}}  ${sess[$i]}"); done
   fi
-  (( statsrow += ${#lines}, tricksrow += ${#lines}, keysrow += ${#lines} ))
+  wrow_off=${#lines}                    # widget rows start below the pet and sessions
   lines+=("${out[@]}")
   for (( i = 1; i <= ${LINES:-8}; i++ )); do
     row=${lines[$i]}

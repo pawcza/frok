@@ -42,7 +42,7 @@ companion_hooks() {
 
 companion_run() {
   local name=$(cfg .companion); [[ $name == (none|frog) ]] && name=frok
-  export FROK_STATE FROK_GEN FROK_FACTS=$(cfg .facts) FROK_PET=$name
+  export FROK_STATE FROK_GEN FROK_CFG FROK_FACTS=$(cfg .facts) FROK_PET=$name
   load_theme $(cfg .theme)                 # chip colours for the companion's footer
   export FROK_UI="${T[hover]} ${T[border]} ${T[accent]} ${T[fg]} ${T[muted]}"
   exec $COMPANION_DIR/companion.zsh

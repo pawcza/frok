@@ -34,12 +34,20 @@ print -r -- "$now${US}34${US}27$US$(( now + 2*3600 + 840 ))${US}46$US$(( now + 3
 jq -n --arg t $(date +%F) '[range(0; 30)] | map({key: ((now - . * 86400) | strftime("%Y-%m-%d")),
   value: {tok: (180000000 + (. * 7919 % 23) * 9000000), add: (900 + (. * 131 % 17) * 120), del: (200 + (. * 37 % 11) * 40), commits: (4 + . % 6)}}) | from_entries' > $S/stats/days.json
 print -r -- 'Alt + D=split →;Alt + Shift + D=split ↓;Alt + ← / ↑ / ↓ / →=move;Ctrl + Shift + W=close pane' > $D/gen/keys.txt
+# the dashboard: a few widgets, with the weather and headlines already "fetched"
+mkdir -p $S/widgets
+print -r -- '{"dashboard":["clock","weather","news","timer","fact","stats","limits","keys","tricks"],
+  "widgets":{"weather":{"city":"Lisbon"},"clock":{"zones":"Tokyo=Asia/Tokyo, New York=America/New_York"}}}' > $D/frok.json
+print -r -- '{"city":"Lisbon","units":"metric","place":"Lisbon","current":{"temperature_2m":21.2,"apparent_temperature":21,"weather_code":1,"wind_speed_10m":14},
+  "current_units":{"wind_speed_10m":"km/h"},"daily":{"temperature_2m_max":[24],"temperature_2m_min":[16],"precipitation_probability_max":[5]}}' > $S/widgets/weather.json
+print -r -- "HN"$'\t'"Show HN: A terminal pet that watches your Claude Code sessions"$'\t'"https://example.com" > $S/widgets/news.tsv
+print -r -- "$(( now - 8 * 60 )) 1500 focus" > $S/widgets/timer
 
-COMP="env -u FROK_PANE FROK_DEMO=1 FROK_DEMO_FOCUS=t:pts/91 FROK_STATE=$D/state FROK_GEN=$D/gen FROK_UI='$UI' \
+COMP="env -u FROK_PANE FROK_DEMO=1 FROK_DEMO_FOCUS=t:pts/91 FROK_STATE=$D/state FROK_GEN=$D/gen FROK_CFG=$D/frok.json FROK_UI='$UI' \
   FROK_DEMO_FACT='An octopus has three hearts, and two of them stop when it swims.' timeout -s KILL 4 zsh $FROK/companion/companion.zsh"
 
 print "screenshots:"
-shot companion 128 16 "frok — companion" "FROK_PET=frok $COMP"
+shot companion 128 20 "frok — companion" "FROK_PET=frok $COMP"
 
 # every pet, mid-trick
 for pk in frok:f cat:k ghost:b robot:b octopus:j; do
@@ -84,3 +92,31 @@ for k, im in enumerate(ims):
 g.save(f"{out}/themes.png", optimize=True)
 PY
 rm -f $OUT/theme-*.png; print "  $OUT/themes.png"
+
+# one frame of each background, in the default theme
+PYTHONPATH=$FROK/backgrounds python3 - $OUT $FROK/themes/tokyo-night.json <<'PY'
+import importlib, json, sys
+from PIL import Image, ImageDraw, ImageFont
+from frokbg import EFFECTS
+from frokbg.common import Theme
+out, t = sys.argv[1], json.load(open(sys.argv[2]))
+theme = Theme(t["fg"], t["ui"]["accent"], t["ui"]["accent2"], t["bg"])
+W, H, gap, cols = 520, 330, 28, 3
+rows = (len(EFFECTS) + cols - 1) // cols
+g = Image.new("RGBA", (cols * W + (cols - 1) * gap, rows * (H + 34) + (rows - 1) * gap), (0, 0, 0, 0))
+d = ImageDraw.Draw(g)
+try: font = ImageFont.truetype("DejaVuSans-Bold.ttf", 20)
+except OSError: font = ImageFont.load_default()
+for k, name in enumerate(EFFECTS):
+    s = importlib.import_module(f"frokbg.{name}").spec(theme)
+    im = s.draw(0.37, int(s.frames * 0.37)).convert("RGB")
+    im = im.resize((W, int(im.height * W / im.width))).crop((0, 0, W, H))
+    r, c = divmod(k, cols); in_row = min(cols, len(EFFECTS) - r * cols)
+    x = (g.width - in_row * (W + gap) + gap) // 2 + c * (W + gap)       # short last row: centred
+    y = r * (H + 34 + gap)
+    mask = Image.new("L", (W, H), 0); ImageDraw.Draw(mask).rounded_rectangle((0, 0, W - 1, H - 1), 12, fill=255)
+    g.paste(im, (x, y + 34), mask)
+    d.text((x + 4, y + 4), name, font=font, fill=(150, 150, 170, 255))
+g.save(f"{out}/backgrounds.png", optimize=True)
+PY
+print "  $OUT/backgrounds.png"

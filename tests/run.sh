@@ -25,7 +25,7 @@ tty_run() {   # tty_run <rows> <cols> <command> < keys
 
 t_syntax() {
   local f
-  for f in $ROOT/bin/frok $ROOT/lib/**/*.zsh $ROOT/companion/*.zsh $ROOT/companion/{parts,pets}/*.zsh $ROOT/shell/frok.sh $ROOT/tests/run.sh; do
+  for f in $ROOT/bin/frok $ROOT/lib/**/*.zsh $ROOT/companion/*.zsh $ROOT/companion/{parts,pets,widgets}/*.zsh $ROOT/shell/frok.sh $ROOT/tests/run.sh; do
     zsh -n $f 2>/dev/null || bad "zsh syntax: ${f#$ROOT/}"
   done
   for f in $ROOT/companion/*.sh; do bash -n $f || bad "bash syntax: ${f#$ROOT/}"; done
@@ -70,10 +70,21 @@ t_pets() {
       done; done
       local -a keys names; for k in $PET_TRICKS; do keys+=(${k%%:*}); names+=(${${k#*:}%%:*}); done
       local -aU uniq=($keys); (( ${#keys} == ${#uniq} )) || errs+=("trick keys repeat")
-      for k in $keys; do [[ $k == [p,\[\]\ ] ]] && errs+=("key $k is taken by the companion"); done
+      for k in $keys; do [[ $k == [p,\[\]\ A-Z] ]] && errs+=("key $k is taken by the companion (widgets use capitals)"); done
       for k in $PET_IDLE; do (( ${names[(Ie)$k]} )) || errs+=("idle trick $k is not in PET_TRICKS"); done
       print -rl -- $errs' _ $f)
     if [[ -z $out ]]; then ok "pet ${f:t:r}"; else bad "pet ${f:t:r}" "${out//$'\n'/; }"; fi
+  done
+}
+
+t_backgrounds() {
+  python3 -c 'import PIL' 2>/dev/null || { ok "backgrounds skipped (no Pillow)"; return }
+  local e
+  for e in $(PYTHONPATH=$ROOT/backgrounds python3 -m frokbg --list); do
+    check "background $e draws a frame" "PYTHONPATH=$ROOT/backgrounds python3 -c '
+import importlib; from frokbg.common import Theme
+s = importlib.import_module(\"frokbg.$e\").spec(Theme(\"#c0caf5\",\"#7aa2f7\",\"#bb9af7\",\"#1a1b26\"))
+f = s.draw(0.5, s.frames // 2); assert f.size == (s.width, s.height)'"
   done
 }
 
@@ -117,20 +128,53 @@ t_stats() {
 }
 
 t_companion() {
-  local S=$SANDBOX/demo/companion now=$EPOCHSECONDS pet keys out
-  mkdir -p $S/sessions $S/status
+  local S=$SANDBOX/demo/companion now=$EPOCHSECONDS pet keys out cfg=$SANDBOX/dash.json
+  mkdir -p $S/sessions $S/status $S/widgets
+  # every widget on, with weather and news already fetched (demo mode stays offline)
+  print -r -- '{"dashboard":["clock","weather","news","system","timer","fact","stats","limits","keys","tricks"],
+    "widgets":{"weather":{"city":"Testville"},"clock":{"zones":"Tokyo=Asia/Tokyo"}}}' > $cfg
+  print -r -- '{"city":"Testville","units":"metric","place":"Testville","current":{"temperature_2m":18.4,"apparent_temperature":16,"weather_code":2,"wind_speed_10m":9},
+    "current_units":{"wind_speed_10m":"km/h"},"daily":{"temperature_2m_max":[21],"temperature_2m_min":[11],"precipitation_probability_max":[10]}}' > $S/widgets/weather.json
+  print -r -- "HN${TAB:-	}A test headline${TAB:-	}https://example.com" > $S/widgets/news.tsv
   print -r -- "$now${US}working${US}t:pts/91$US/w$US\$ npm test${US}Fix the token refresh race$US" > $S/sessions/c1
   print -r -- "$now${US}waiting${US}t:pts/92$US/w${US}needs permission: npm run migrate${US}Add dark mode$US" > $S/sessions/c2
   print -r -- "$now${US}40${US}23$US$(( now + 3600 ))${US}41$US$(( now + 86400 ))${US}test" > $S/status/c1
   for pet in $ROOT/companion/pets/*.zsh(:t:r); do
     keys=$(zsh -c 'source $1; for t in $PET_TRICKS; do print -n ${t%%:*}; done' _ $ROOT/companion/pets/$pet.zsh)
-    out=$( { sleep 1; for k in ${(s::)keys} p ']' '['; do printf %s $k; sleep 0.25; done; sleep 0.5 } |
-      tty_run 18 120 "FROK_DEMO=1 FROK_STATE=$SANDBOX/demo FROK_FACTS=false FROK_PET=$pet timeout 6 zsh $ROOT/companion/companion.zsh" 2>&1 )
+    out=$( { sleep 1; for k in ${(s::)keys} p ']' '[' N T; do printf %s $k; sleep 0.25; done; sleep 0.8 } |
+      tty_run 30 120 "FROK_DEMO=1 FROK_CFG=$cfg FROK_STATE=$SANDBOX/demo FROK_FACTS=false FROK_PET=$pet timeout 7 zsh $ROOT/companion/companion.zsh" 2>&1 )
     local errs=${(M)${(f)out}:#*(not found|bad (math|pattern|subscript|substitution)|parse error|no such file)*}
     if [[ -n $errs ]]; then bad "companion with $pet" "${errs[1,200]}"
     elif [[ $out != *"Fix the token refresh race"* || $out != *"needs you"* || $out != *"resets in"* ]]; then bad "companion with $pet: sessions or limits missing"
-    else ok "companion with $pet: renders, every trick runs"; fi
+    elif [[ $out != *"18°"* || $out != *"A test headline"* || $out != *"Tokyo"* || $out != *"mem "* || $out != *" left"* ]]; then bad "companion with $pet: a widget is missing (weather, news, clock, system or a running timer)"
+    else ok "companion with $pet: every widget renders, every trick and key runs"; fi
+    rm -f $S/widgets/timer
   done
+}
+
+t_widgets() {
+  local f n
+  for f in $ROOT/companion/widgets/*.zsh; do
+    n=${f:t:r}
+    check "widget $n: described and drawable" "[[ \$(sed -n 1p $f) == '# $n — '* ]] && grep -q '^w_${n}_render()' $f"
+  done
+  local out; out=$(python3 $ROOT/companion/widgets/news-fetch.py "file://$FIX/feed.xml")
+  check "feeds: headlines with their links" "[[ \$out == *'Plain headline'*'https://example.com/a'* ]]" "$out"
+  check "feeds: control characters stripped from titles" "[[ \$out != *$'\\u009b'* && \$out == *'Sneaky 2Jcleared'* ]]"
+  check "feeds: only http(s) links" "[[ \$out != *javascript* ]]"
+}
+
+t_dashboard() {
+  local frok=$ROOT/bin/frok
+  $frok dashboard add weather 1 >/dev/null; $frok dashboard set weather city Testville >/dev/null
+  $frok dashboard move fact 6 >/dev/null; $frok dashboard remove keys >/dev/null
+  check "add / move / remove keep the order" "[[ \$(jq -c .dashboard $FROK_CONFIG_DIR/frok.json) == '[\"weather\",\"stats\",\"limits\",\"tricks\",\"fact\"]' ]]" "$(jq -c .dashboard $FROK_CONFIG_DIR/frok.json)"
+  check "set stores an option" "[[ \$(jq -r .widgets.weather.city $FROK_CONFIG_DIR/frok.json) == Testville ]]"
+  $frok dashboard set weather city "" >/dev/null
+  check "an empty value clears it" "[[ \$(jq -r '.widgets.weather.city // \"gone\"' $FROK_CONFIG_DIR/frok.json) == gone ]]"
+  check "unknown widgets are refused" "! $frok dashboard add teleport 2>/dev/null"
+  $frok dashboard reset >/dev/null
+  check "reset brings back the defaults" "[[ \$(jq -c .dashboard $FROK_CONFIG_DIR/frok.json) == '[\"fact\",\"stats\",\"limits\",\"keys\",\"tricks\"]' ]]"
 }
 
 t_cli() {
@@ -141,7 +185,7 @@ t_cli() {
   check "unknown pet is refused" "! $frok companion dragon 2>/dev/null"
 }
 
-typeset -a all=(syntax themes layouts pets hook statusline stats companion cli)
+typeset -a all=(syntax themes layouts pets widgets backgrounds hook statusline stats companion dashboard cli)
 for t in ${@:-$all}; do print -P "%B$t%b"; t_$t; done
 print; if (( fail )); then print -P "%F{green}$pass passed%f, %F{red}$fail failed%f"; else print -P "%F{green}$pass passed%f"; fi
 (( fail == 0 ))

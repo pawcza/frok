@@ -298,19 +298,24 @@ wz_pv_theme() {   # a small terminal session in the highlighted theme
     "$(swatch)  ${m}${T[name]}"
 }
 
-wz_pv_bg() {   # wz_pv_bg <rain|none|image|file> [opacity]
+wz_pv_bg() {   # wz_pv_bg <effect|none|image|file> [opacity]
   local kind=$1 op=${2:-$(cfg .background_opacity)} y x line ch; local -a box
-  [[ $kind == (rain|none|image) ]] || kind=image
+  [[ $kind == (none|image) ]] || bg_is_effect $kind || kind=image
   local col=$(hexfg $(mix ${T[a6]} ${T[bg]} $(( int(op * 100) )))) f=$(hexfg ${T[fg]})
   local -a text=("" "${f}❯ git status" "${f}On branch main" "${f}nothing to commit" "" "" "" "")
   for (( y = 1; y <= 8; y++ )); do
     line=""
     for (( x = 1; x <= 44; x++ )); do
       if (( x <= ${#${text[y]//$'\e'\[[0-9;]#m/}} + 1 && y >= 2 && y <= 4 )); then continue; fi
-      case $kind in
-        rain)  (( (x * 7 + y * 13 + x * y) % 11 == 0 )) && ch="╎" || ch=" " ;;
-        image) (( (x + y) % 3 )) && ch="░" || ch="▒" ;;
-        none)  ch=" " ;;
+      case $kind in                 # a hint of each effect, in characters
+        rain)      (( (x * 7 + y * 13 + x * y) % 11 == 0 )) && ch="╎" || ch=" " ;;
+        starfield) (( (x * 31 + y * 17) % 23 == 0 )) && ch="·" || { (( (x * 13 + y * 7) % 41 == 0 )) && ch="✦" || ch=" " } ;;
+        snow)      (( (x * 11 + y * 19) % 17 == 0 )) && ch="•" || { (( (x * 5 + y * 3) % 29 == 0 )) && ch="·" || ch=" " } ;;
+        aurora)    (( y <= 4 && (x + 2 * y + (x / 6) % 3) % 3 == 0 )) && ch="▒" || { (( y <= 5 && (x + y) % 4 == 0 )) && ch="░" || ch=" " } ;;
+        synthwave) if (( y >= 6 )); then (( x % 5 == 0 )) && ch="┼" || ch="─"
+                   elif (( y >= 3 && y <= 5 && x >= 18 && x <= 28 )); then ch="▀"; else ch=" "; fi ;;
+        image)     (( (x + y) % 3 )) && ch="░" || ch="▒" ;;
+        none)      ch=" " ;;
       esac
       line+=$ch
     done
@@ -319,9 +324,9 @@ wz_pv_bg() {   # wz_pv_bg <rain|none|image|file> [opacity]
   wz_box 46 "${box[@]}"
   print -r -- ""
   case $kind in
-    rain)  print -r -- "  $(hexfg ${T[muted]})rain at $op, recoloured for ${T[name]}$WZ_R" ;;
     image) print -r -- "  $(hexfg ${T[muted]})your picture at $op$WZ_R" ;;
     none)  print -r -- "  $(hexfg ${T[muted]})just the theme's background$WZ_R" ;;
+    *)     print -r -- "  $(hexfg ${T[muted]})$kind at $op, recoloured for ${T[name]}$WZ_R" ;;
   esac
 }
 wz_pv_strength() { wz_pv_bg $(cfg .background) $1; }
@@ -425,13 +430,15 @@ wz_theme() {
 wz_background() { wz_tabs "Background|Strength" wz_bg_kind wz_bg_strength; }
 
 wz_bg_kind() {
-  wz_header 2 Background "Sits behind your text. Rain is animated and takes the theme's colours."
-  local c rc now=$(cfg .background); [[ $now == (rain|none) ]] || now=image
+  wz_header 2 Background "Sits behind your text. Each effect is animated and takes the theme's colours."
+  local c rc now=$(cfg .background); [[ $now == none ]] || bg_is_effect $now || now=image
   c=$(WZ_TABS=1 WZ_PREVIEW=wz_pv_bg wz_choose $now \
-      rain "animated, in the theme's colours" none "plain" image "your own picture or gif"); rc=$?
+      rain "digital rain in three depths" starfield "stars drifting past, the odd shooting star" \
+      snow "flakes in three depths, a gentle wind" aurora "slow curtains of light" \
+      synthwave "a neon grid under a striped sun" none "plain" image "your own picture or gif"); rc=$?
   (( rc )) && return rc
   if [[ $c == image ]]; then
-    local cur=$(cfg .background); [[ $cur == (rain|none) ]] && cur=""
+    local cur=$(cfg .background); { [[ $cur == none ]] || bg_is_effect $cur } && cur=""
     c=$(wz_input "Path to the picture" ${cur/#$HOME/~}) || return 4
     [[ -f $(expand_home $c) ]] || { print -r -- "  $(hexfg ${T[a1]})no file at $c$WZ_R"; sleep 1.2; return 4 }
     c=${$(expand_home $c):A}
@@ -454,6 +461,44 @@ wz_companion() {
   for n in $(companion_names); do opts+=($n "$(sed -n '1s/^# [a-z]* — //p' $COMPANION_DIR/pets/$n.zsh)"); done
   local c; c=$(WZ_PREVIEW=wz_pv_companion wz_choose $(cfg .companion) "${opts[@]}" none "no companion") || return 0
   wz_set .companion $c || true
+}
+
+# Dashboard: the widgets under the sessions. Pick one to switch it on or off,
+# move it, or set its options; Esc goes back.
+wz_dashboard() {
+  local c w o v mut=$(hexfg ${T[muted]}) acc=$(hexfg ${T[accent]})
+  local -a cur opts acts
+  while :; do
+    cur=(${(f)"$(dashboard_list)"}); opts=()
+    for w in $cur; do opts+=($w "$acc✓$WZ_R ${$(widget_about $w)%% Option*}"); done
+    opts+=(-)
+    for w in $(widget_names); do (( ${cur[(Ie)$w]} )) || opts+=($w "$mut· ${$(widget_about $w)%% Option*}$WZ_R"); done
+    wz_header 0 Dashboard "What the companion shows under your sessions, top to bottom (✓ = shown). Open companions update right away."
+    c=$(WZ_ESC=back wz_choose ${c:-${cur[1]}} "${opts[@]}" - back "") || return 0
+    [[ $c == back ]] && return 0
+    w=$c
+    while :; do
+      cur=(${(f)"$(dashboard_list)"}); acts=()
+      if (( ${cur[(Ie)$w]} )); then
+        acts+=(off "stop showing $w")
+        (( ${cur[(Ie)$w]} > 1 )) && acts+=(up "move it up (now number ${cur[(Ie)$w]})")
+        (( ${cur[(Ie)$w]} < $#cur )) && acts+=(down "move it down")
+      else acts+=(on "show $w at the bottom"); fi
+      for o in ${=$(widget_options $w)}; do acts+=("$o" "set $o · now: $(cfg ".widgets.$w.$o // \"default\"")"); done
+      acts+=(- back "")
+      wz_header 0 "Dashboard › $w" "$(widget_about $w)"
+      c=$(WZ_ESC=back wz_choose ${acts[1]} "${acts[@]}") || break
+      case $c in
+        back) break ;;
+        on)   dashboard_cmd add $w >/dev/null ;;
+        off)  dashboard_cmd remove $w >/dev/null ;;
+        up)   dashboard_cmd move $w $(( ${cur[(Ie)$w]} - 1 )) >/dev/null ;;
+        down) dashboard_cmd move $w $(( ${cur[(Ie)$w]} + 1 )) >/dev/null ;;
+        *)    v=$(wz_input "$w $c (empty = default)" "$(cfg ".widgets.$w.$c // empty")") && dashboard_cmd set $w $c "$v" >/dev/null ;;
+      esac
+    done
+    c=$w
+  done
 }
 
 wz_layout() { wz_tabs "Layout|Every window|Panes" wz_layout_pick wz_layout_auto wz_layout_panes; }
@@ -668,7 +713,8 @@ wz_menu() {
     load_theme $(cfg .theme)
     bg=$(cfg .background); [[ $bg == none ]] || bg+=" at $(cfg .background_opacity)"
     tl=$(cfg .layout); [[ $(cfg .layout_on_start) == true && $tl != single ]] && tl+=", in every new window"
-    opts=(theme "$(cfg .theme)  $(swatch)" background $bg companion "$(cfg .companion)" layout $tl
+    opts=(theme "$(cfg .theme)  $(swatch)" background $bg companion "$(cfg .companion)"
+          dashboard "${(j:, :)${(f)$(dashboard_list)}}" layout $tl
           prompt "$(cfg .prompt)" font "$(cfg .font.family), $(cfg .font.size)")
     wz_has_wt && opts+=("open layout" "split a new window into $(cfg .layout) now")
     opts+=("full setup" "all six steps in a row" "health check" "is everything installed and hooked up?"
@@ -681,7 +727,7 @@ wz_menu() {
     (( ${sz% *} >= 28 && ${sz#* } >= 80 )) && idle=wz_frog_idle   # needs the banner on screen, unscrolled
     c=$(WZ_IDLE=$idle WZ_ESC=quit WZ_HINT="↑↓ to move, Enter to pick · q quits" wz_choose theme "${opts[@]}")
     case $c in
-      theme) wz_theme ;;  background) wz_background ;;  companion) wz_companion ;;
+      theme) wz_theme ;;  background) wz_background ;;  companion) wz_companion ;;  dashboard) wz_dashboard ;;
       layout) wz_layout ;;  prompt) wz_prompt ;;  font) wz_font ;;
       "open layout") $FROK_HOME/bin/frok layout open; sleep 1 ;;
       "full setup") WZ_SOLO=0 wizard; wz_back ;;

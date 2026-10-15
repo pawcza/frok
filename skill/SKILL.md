@@ -37,6 +37,7 @@ change.
 | Colour theme | `frok theme` (list) · `frok theme <name>` |
 | Background | `frok background rain` (animated, recoloured to the theme) · `frok background none` · `frok background <image or gif path>` · `frok background opacity 0.2` |
 | Companion (Claude Code session pet) | `frok companion <pet>` (frok, cat, ghost, robot, octopus) · `frok companion none` · `frok companion facts on/off` |
+| Dashboard (widgets under the sessions) | `frok dashboard` (list) · `frok dashboard add <widget> [position]` / `remove` / `move <widget> <n>` · `frok dashboard set weather city "<city>"` · widgets: clock, weather, news, system, timer, fact, stats, limits, keys, tricks |
 | Layout | `frok layout` (list) · `frok layout <name>` · `frok layout open` (open it now) · `frok layout autostart on/off` |
 | What agent panes run | `frok agent "<command>"` (default `claude`) · `frok workdir <dir>` |
 | Prompt | `frok prompt starship` · `frok prompt none` |

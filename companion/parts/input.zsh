@@ -32,26 +32,15 @@ handle_input() {
       (( mx >= ${pp[3]%%:*} && mx <= ${pp[3]##*:} && pg < npg )) && (( pg++ ))
     elif (( btn == 0 && ( stacked || mx >= 36 ) )) && (( (ri = my - sess_off) >= 1 && ri <= ${#rowpane} )) && [[ -n ${rowpane[$ri]} ]] && own_pane "${rowpane[$ri]}"; then
       focus_pane "${rowpane[$ri]}"                                  # left-click a session → jump to its pane
-    elif (( btn == 0 && my == keysrow )) && [[ ${keypos[1]} == 1:* ]] && (( mx >= LW + ${${(s.:.)keypos[1]}[2]} && mx <= LW + ${${(s.:.)keypos[1]}[3]} )); then
-      open_settings                                                 # the settings button
-    elif (( btn == 0 && my >= tricksrow && my < tricksrow + ${#tricklines} )); then   # click a trick
-      for tp in $trickpos; do
-        tq=(${(s.:.)tp})
-        (( my == tricksrow + tq[1] - 1 && mx >= LW + tq[2] && mx <= LW + tq[3] )) && [[ -z $phase ]] && start_trick ${trickkey[${tq[4]}]}
-      done
-    elif (( btn == 0 && my == statsrow )); then                     # click a period tab
-      for (( k = 1; k <= 3; k++ )); do
-        (( mx >= ${tabx[k]%%:*} && mx <= ${tabx[k]##*:} )) && pi=$k
-      done
+    elif (( btn == 0 )) && widget_click $my $mx; then
+      :                                                             # a widget's button, tab or link
     fi
   elif [[ $buf == , ]]; then                                           # , → settings
     open_settings
-  elif [[ $buf == p ]]; then                                           # p → next period
-    (( pi = pi % 3 + 1 ))
+  elif widget_key "$buf"; then                                         # a widget's key (p, space, N, T…)
+    :
   elif [[ $buf == '[' ]]; then (( pg > 1 )) && (( pg-- ))              # [ / ] → session pages
   elif [[ $buf == ']' ]]; then (( pg < npg )) && (( pg++ ))
-  elif [[ $buf == " " ]]; then                                         # space → new useless fact
-    fetch_fact
   elif [[ -n ${trickkey[$buf]} && -z $phase ]]; then                    # the pet's tricks on demand
     start_trick ${trickkey[$buf]}
   fi

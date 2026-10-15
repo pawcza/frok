@@ -32,6 +32,8 @@ FROK_DEFAULTS='{
   "background_opacity": 0.2,
   "companion": "frok",
   "facts": true,
+  "dashboard": ["fact","stats","limits","keys","tricks"],
+  "widgets": {},
   "layout": "side",
   "layout_on_start": true,
   "agent": "claude",

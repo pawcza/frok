@@ -19,9 +19,11 @@ State lives in `~/.local/state/frok/companion/`.
 | `parts/panes.zsh` | which terminal this is, its panes, which run Claude, focusing one |
 | `parts/sessions.zsh` | the session list: hook records checked against transcripts and the status line |
 | `parts/pet.zsh` | loads the pet and draws it, mood and tricks included |
-| `parts/render.zsh` | one frame: pet, sessions, then fact, stats, limits, keys and tricks |
+| `parts/render.zsh` | one frame: pet and sessions, then the dashboard |
+| `parts/widgets.zsh` | the dashboard engine: loads the widget list from frok.json (live), draws each widget, routes keys and clicks |
 | `parts/input.zsh` | keys and clicks |
-| `parts/ui.zsh` `usage.zsh` `facts.zsh` | chips and bars; stats and limits; useless facts |
+| `parts/ui.zsh` | chips, bars, number formats |
+| `widgets/` | one file per dashboard widget ([format](widgets/README.md)); `news-fetch.py` reads feeds |
 | `companion-event.sh` | a Claude Code hook for every event (prompt, tool use, permission, stop…). Writes one line per session: time, state, pane, folder, what it's doing, its title, the transcript path. Never stores prompts, file contents or output, and always exits 0. |
 | `statusline.sh` | Claude Code's status line command. Keeps the session's context % and the 5-hour / 7-day usage limits, and prints a short line in Claude Code |
 | `stats.sh` | indexes every transcript into per-day tokens, lines added/removed (from edits) and commits (successful `git commit` calls). Reads only new bytes after the first run. |

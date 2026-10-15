@@ -17,10 +17,6 @@ indent=${(l:LW:)}
 # section <label> <line>… → label on the first line, the rest indented under it
 section() { local n=$1; shift; out+=("$(label $n)$1"); shift; for l; do out+=("$indent$l"); done; }
 
-KEYSFILE=${FROK_GEN:-$HOME/.config/frok/generated}/keys.txt
-keyitems=(",${TAB}settings")                     # frok's own: opens the menu
-[[ -r $KEYSFILE ]] && for kv in ${(s:;:)"$(<$KEYSFILE)"}; do keyitems+=("${kv%%=*}$TAB${kv#*=}"); done
-trickitems=(); for t in $PET_TRICKS; do trickitems+=("${t%%:*}$TAB${${t#*:}%%:*}"); done
 # pack <width> <"key<TAB>label">… → packed=(lines): key chips + labels, wrapped between items
 pack() {
   local w=$1 it k l cur="" vis=0 n; shift; packed=(); packpos=()

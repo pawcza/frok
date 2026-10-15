@@ -15,12 +15,14 @@ tells you which one needs you, and keeps an eye on your usage limits.
   it from there.
 - **Usage:** your 5-hour and 7-day limits, plus tokens, lines changed and commits
   for today, the last 7 days or the last 30.
+- **A dashboard you choose:** weather, headlines, world clocks, system load, a
+  focus timer and more, in whatever order you like.
 - **A pet with moods:** it squints while Claude works, goes wide-eyed when a
   session needs you and cheers when one finishes. Poke it too often and it
   leaves for a while.
 - **Your terminal, themed:** five colour schemes carried through the terminal,
-  prompt, fzf and companion, an animated rain background, Nerd Fonts and
-  layouts that build themselves when the terminal opens.
+  prompt, fzf and companion, five animated backgrounds, Nerd Fonts and layouts
+  that build themselves when the terminal opens.
 
 ## Install
 
@@ -55,8 +57,9 @@ Every setting also has a direct command:
 | | |
 |---|---|
 | `frok theme [name]` | tokyo-night, catppuccin-mocha, gruvbox-dark, dracula, matrix (no name: list with swatches) |
-| `frok background rain\|none\|<file>` | digital rain recoloured to the theme, any image or GIF, or nothing · `frok background opacity 0.2` |
+| `frok background <effect>\|none\|<file>` | rain, starfield, snow, aurora, synthwave, all recoloured to the theme, or any image or GIF · `frok background opacity 0.2` |
 | `frok companion <pet>\|none` | frok, cat, ghost, robot, octopus · `frok companion facts on\|off` |
+| `frok dashboard` | the widgets under the sessions · `add\|remove <widget>` · `move <widget> <n>` · `set <widget> <option> <value>` |
 | `frok layout [name]` | `single`, `side`, `quad`, `grid` · `frok layout open` · `frok layout autostart on` |
 | `frok agent "<cmd>"` | what agent panes run (default `claude`, e.g. `ccs personal`) · `frok workdir ~/dev` |
 | `frok prompt starship\|none` | |
@@ -83,9 +86,32 @@ trick's key or click its chip in the footer.
 | **✕** (click twice) | end that Claude session; the pane keeps its shell |
 | `[` `]`, or the pager | more sessions (4 to a page) |
 | `p`, or click a period | stats for today · 7 days · 30 days |
-| `space` | a new useless fact |
+| `space` · `N` · `T` | a new fact · the next headline · start / stop the focus timer |
 | `,`, or the settings chip | `frok menu`, right there |
 | click the pet | don't |
+
+### The dashboard
+
+Under the sessions sits a dashboard of widgets you pick and order:
+
+| | |
+|---|---|
+| `clock` | time, date and world clocks |
+| `weather` | now and today for your city (Open-Meteo, no key) |
+| `news` | Hacker News or any RSS / Atom feeds; click a headline to open it |
+| `system` | CPU, memory, disk, battery |
+| `timer` | a focus timer: `T` to start, the pet cheers when it's done |
+| `fact` `stats` `limits` `keys` `tricks` | the defaults |
+
+```sh
+frok dashboard add weather 1                # at the top
+frok dashboard set weather city Kraków
+frok dashboard set clock zones "Tokyo=Asia/Tokyo, New York=America/New_York"
+frok dashboard set news feeds "hn, https://www.theverge.com/rss/index.xml"
+```
+
+Or `frok menu` › dashboard. Open companions update straight away. Writing your
+own widget is one file: [widgets](companion/widgets/README.md).
 
 How it works and what it stores: [companion](companion/README.md).
 Adding a pet is one file: [pets](companion/pets/README.md).
@@ -98,6 +124,15 @@ A theme colours the terminal, the prompt, fzf and the companion. Your own go in
 `~/.config/frok/themes/` ([format](themes/README.md)), and your own layouts in
 `~/.config/frok/layouts/` ([format](layouts/README.md)). Settings live in
 `~/.config/frok/frok.json`.
+
+## Backgrounds
+
+![One frame of each animated background](docs/img/backgrounds.png)
+
+Rain, starfield, snow, aurora and synthwave: seamless loops generated for your
+theme the first time you pick them (`frok background aurora`), shown behind the
+terminal at the opacity you set. How they're made, and adding one:
+[backgrounds](backgrounds/README.md).
 
 ## Terminals
 
@@ -146,12 +181,12 @@ lib/
   terminals/          detect, wezterm, windows-terminal, kitty
   wizard.zsh          the setup screens and `frok menu`
 companion/            the companion pane (see its README)
-  companion.zsh       main loop          parts/   panes, sessions, pet, render, input…
-  companion-event.sh  Claude Code hook   statusline.sh  stats.sh   pets/
+  companion.zsh       main loop          parts/   panes, sessions, pet, widgets, render, input…
+  companion-event.sh  Claude Code hook   statusline.sh  stats.sh   pets/  widgets/
 skill/                the Claude Code skill (lets Claude drive frok)
 themes/  layouts/     built-in themes and layouts (JSON, see their READMEs)
 shell/                the shell init and starship template frok renders
-backgrounds/          the rain generator
+backgrounds/          the animated backgrounds (frokbg package, see its README)
 tests/                tests/run.sh: offline, in a sandbox; runs on every push
 docs/                 screenshots (rebuild with docs/screenshots/make.sh)
 ```
@@ -159,8 +194,8 @@ docs/                 screenshots (rebuild with docs/screenshots/make.sh)
 ## Contributing
 
 Run `tests/run.sh` before sending a change, and `docs/screenshots/make.sh` if
-the companion or the menu look different. New pets, themes and layouts are one
-file each. The READMEs next to them describe the format.
+the companion or the menu look different. New pets, widgets, themes and layouts
+are one file each. The READMEs next to them describe the format.
 
 ## License
 

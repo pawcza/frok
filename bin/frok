@@ -5,7 +5,7 @@
 emulate -L zsh
 setopt extendedglob pipefail
 FROK_HOME=${${0:A}:h:h}
-for f in core packages theme keys layout shell claude companion background fonts \
+for f in core packages theme keys layout shell claude companion dashboard background fonts \
          terminals/detect terminals/wezterm terminals/windows-terminal terminals/kitty wizard commands; do
   source $FROK_HOME/lib/$f.zsh
 done
@@ -39,8 +39,11 @@ case $cmd in
     case ${1:-} in
       "") print "background: $(cfg .background) (opacity $(cfg .background_opacity))" ;;
       opacity) [[ ${2:-} == (0|1|0.<->|.<->) ]] || die "opacity between 0 and 1"; cfg_set .background_opacity $2; apply_all ;;
-      rain|none) cfg_set .background "$(jstr $1)"; apply_all ;;
-      *) [[ -f $(expand_home $1) ]] || die "no file $1"; cfg_set .background "$(jstr ${1:A})"; apply_all ;;
+      none) cfg_set .background '"none"'; apply_all ;;
+      *) if bg_is_effect $1; then cfg_set .background "$(jstr $1)"
+         else [[ -f $(expand_home $1) ]] || die "no effect or file '$1' (effects: $(bg_effects | tr '\n' ' '))"
+              cfg_set .background "$(jstr ${$(expand_home $1):A})"; fi
+         apply_all ;;
     esac ;;
 
   companion)
@@ -51,6 +54,8 @@ case $cmd in
       *) [[ $1 == none || -f $COMPANION_DIR/pets/$1.zsh ]] || die "no companion '$1' (pets: $(companion_names | tr '\n' ' '))"
          cfg_set .companion "$(jstr $1)"; apply_all ;;
     esac ;;
+
+  dashboard) dashboard_cmd "$@" ;;
 
   layout)
     case ${1:-} in
