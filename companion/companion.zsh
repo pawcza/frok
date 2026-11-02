@@ -1,9 +1,9 @@
 #!/usr/bin/env zsh
-# companion.zsh — the companion pane: an animated pet that watches your Claude
-# Code sessions. It finds them in the terminal (parts/panes.zsh), learns what
-# each is doing from the hook, the transcript and the status line
-# (parts/sessions.zsh), and draws them beside the pet with stats, limits and
-# keys below (parts/render.zsh). The pet's mood follows the most urgent session.
+# companion.zsh: the companion pane: an animated pet and a dashboard, watching
+# your coding agents. It finds their sessions in the terminal (parts/panes.zsh),
+# learns what each is doing from what the agent reports (parts/sessions.zsh),
+# and draws them beside the pet with the dashboard below (parts/render.zsh).
+# The pet's mood follows the most urgent session.
 # Keys and clicks: parts/input.zsh. Ctrl+C quits.
 emulate -L zsh
 setopt extendedglob
@@ -12,6 +12,7 @@ zmodload -F zsh/stat b:zstat 2>/dev/null
 HERE=${0:A:h}                       # parts/ and pets/ live next to this script
 STATE=${FROK_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/frok}/companion
 SDIR="$STATE/sessions"              # written by companion-event.sh
+source $HERE/agents/agents.sh
 
 US=$'\x1f'; TAB=$'\t'
 

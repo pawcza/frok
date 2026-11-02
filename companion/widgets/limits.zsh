@@ -1,4 +1,4 @@
-# limits — your 5-hour and 7-day usage limits, from Claude Code's status line.
+# limits — your 5-hour and 7-day usage limits (Claude Code only; hidden otherwise).
 W_LABEL[limits]=limits
 
 lim=()
@@ -13,7 +13,10 @@ w_limits_refresh() { (( tick % 25 == 0 )) && refresh_limits; }
 
 w_limits_render() {
   local row=""
-  if (( ! ${#lim} )); then wl=("${D}shows after Claude's next reply (needs a Pro/Max plan)${X}"); return; fi
+  if (( ! ${#lim} )); then
+    claude_in_use && wl=("${D}shows after Claude's next reply (needs a Pro/Max plan)${X}")
+    return
+  fi
   [[ -n ${lim[1]} ]] && { (( EPOCHSECONDS >= ${lim[2]:-0} )) && lim[1]=0
     row+="${D}5h ${X}$(bar ${lim[1]})${D}  resets in $(dur $(( ${lim[2]:-0} - EPOCHSECONDS )))${X}"; }
   [[ -n ${lim[3]} ]] && { (( EPOCHSECONDS >= ${lim[4]:-0} )) && lim[3]=0

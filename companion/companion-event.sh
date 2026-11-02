@@ -1,33 +1,56 @@
 #!/bin/bash
-# companion-event.sh — bridge between Claude Code hooks and the companion.
-# Claude Code pipes the hook payload as JSON on stdin. We keep ONE small state
-# file per session in ~/.config/terminal/sessions/<session_id>:
-#   <ts>\x1f<state>\x1f<pane: WezTerm pane id, or k<id> for a kitty window>\x1f<cwd>\x1f<what it's doing>\x1f<topic: Claude's title for the session, else the start of the latest prompt>\x1f<transcript path>
+# companion-event.sh [agent]: bridge between a coding agent and the companion.
+# The agent runs this on each event, with a JSON payload on stdin (aider sends
+# nothing: its notification command has no payload). agents/<agent>.jq maps the
+# payload onto Claude Code's event names, and the result is ONE small state file
+# per session in $STATE/companion/sessions/<session_id>:
+#   <ts>\x1f<state>\x1f<pane: WezTerm pane id, k<id> for a kitty window, t:<tty> elsewhere>\x1f<cwd>\x1f<what it's doing>\x1f<topic: the agent's title for the session, else the start of the latest prompt>\x1f<transcript path>\x1f<agent>
 # plus the legacy global companion.state (used by the WezTerm status-bar face).
-# Fast, and exits 0 no matter what (a hook must never block Claude).
+# Fast, and exits 0 no matter what (a hook must never block an agent).
 set -u
+AGENT="${1:-claude}"
+case "$AGENT" in claude|codex|gemini|opencode|aider) ;; *) exit 0 ;; esac
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || exit 0
 DIR="${FROK_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/frok}/companion"
 SDIR="$DIR/sessions"
 mkdir -p "$SDIR" 2>/dev/null || exit 0
 command -v jq >/dev/null 2>&1 || exit 0
-[ -t 0 ] && exit 0
-IN="$(cat 2>/dev/null)"
+. "$HERE/agents/agents.sh"
 US=$'\x1f'
 
-# One jq pass: event, session, cwd, tool, the tool's main target, prompt, message.
-IFS="$US" read -r EV SID CWD TOOL TARGET PROMPT MSG NTYPE TPATH < <(printf '%s' "$IN" | jq -r '
-  def s: (. // "") | tostring | gsub("[\t\n\r\u001f]+"; " ");
-  [ .hook_event_name, .session_id, .cwd, .tool_name,
-    ( .tool_input as $i | (.tool_name // "") as $t |
-      if   $t == "Bash" then $i.command
-      elif ($t | test("^(Edit|MultiEdit|Write|Read|NotebookEdit)$")) then ($i.file_path // $i.notebook_path)
-      elif ($t == "Grep" or $t == "Glob") then $i.pattern
-      elif $t == "WebFetch" then $i.url
-      elif $t == "WebSearch" then $i.query
-      elif ($t == "Task" or $t == "Agent") then $i.description
-      else "" end ),
-    .prompt, .message, .notification_type, .transcript_path ] | map(s) | join("\u001f")' 2>/dev/null)
-[ -z "${SID:-}" ] && exit 0
+# which terminal pane is this? kitty sets TERM=xterm-kitty; WezTerm's env can leak
+# into kitty when it's launched from a WezTerm shell, so check kitty first.
+find_pane() {
+  if [ "${TERM:-}" = xterm-kitty ] && [ -n "${KITTY_WINDOW_ID:-}" ]; then PANE="k$KITTY_WINDOW_ID"
+  elif [ -n "${WEZTERM_PANE:-}" ]; then PANE="$WEZTERM_PANE"
+  else                                   # any other terminal: use the tty of our agent ancestor
+    PANE=""; p=$PPID
+    for _ in 1 2 3 4 5 6 7 8; do
+      [ -z "$p" ] || [ "$p" -le 1 ] && break
+      agent_of $(ps -o args= -p "$p" 2>/dev/null)
+      if [ "$AGENT_ID" = "$AGENT" ]; then
+        t=$(ps -o tty= -p "$p" 2>/dev/null | tr -d ' ')
+        case "$t" in ''|'?'|'??') ;; *) PANE="t:$t"; break ;; esac
+      fi
+      p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')
+    done
+  fi
+}
+
+if [ "$AGENT" = aider ]; then
+  # one event only: aider is ready for you. No session id either, so the pane is the session.
+  find_pane
+  EV=Stop; CWD=$PWD; TOOL=""; TARGET=""; PROMPT=""; MSG=""; NTYPE=""; TPATH=""; TITLE=""
+  SID="aider-${PANE:-$PPID}"
+else
+  [ -t 0 ] && exit 0
+  IN="$(cat 2>/dev/null)"
+  # One jq pass: event, session, cwd, tool, its main target, prompt, message, type, transcript, title.
+  IFS="$US" read -r EV SID CWD TOOL TARGET PROMPT MSG NTYPE TPATH TITLE < <(printf '%s' "$IN" | jq -r \
+    "$(<"$HERE/agents/$AGENT.jq") | map((. // \"\") | tostring | gsub(\"[\\t\\n\\r\\u001f]+\"; \" \")) | join(\"\\u001f\")" 2>/dev/null)
+fi
+SID="${SID:-}"; SID="${SID//[^A-Za-z0-9._-]/-}"          # it becomes a file name
+[ -z "$SID" ] && exit 0
 F="$SDIR/$SID"
 
 short() { local s="$1" n="$2"; [ ${#s} -gt "$n" ] && s="${s:0:$((n-1))}…"; printf '%s' "$s"; }
@@ -56,6 +79,7 @@ case "$EV" in
       "<"*)                  detail="system message" ;;
       *)                     detail="“$(short "$PROMPT" 55)”"; topic="$(short "$PROMPT" 70)" ;;
     esac ;;
+  Busy)               state=thinking;  detail="${MSG:-$(prev_detail)}" ;;
   PreToolUse)         state=working;   detail="$(tooldesc)" ;;
   PostToolUse)        state=thinking;  detail="$(prev_detail)" ;;
   PostToolUseFailure) state=error;     detail="failed: $(tooldesc)" ;;
@@ -74,39 +98,25 @@ case "$EV" in
       idle_prompt|auth_success) exit 0 ;;
       *) state=waiting; detail="$(short "${MSG:-needs your input}" 60)" ;;
     esac ;;
+  Error)              state=error;     detail="failed: $(short "${MSG:-unknown error}" 50)" ;;
   PreCompact)         state=dizzy;     detail="compacting context" ;;
   Stop)               state=done;      detail="finished" ;;
   SessionEnd)         rm -f "$F"; state=sleep ;;
   *)                  exit 0 ;;
 esac
+[ -n "${TITLE:-}" ] && topic="$TITLE"
+[ "$AGENT" = aider ] && detail="ready for your next prompt"
 # Claude's own title for the conversation (what it puts on the pane) lives in the transcript
-if [ -n "${TPATH:-}" ] && [ -r "$TPATH" ]; then
+if [ "$AGENT" = claude ] && [ -n "${TPATH:-}" ] && [ -r "$TPATH" ]; then
   t=$(grep -o '"aiTitle":"[^"]*"' "$TPATH" 2>/dev/null | tail -n 1)
   t=${t#'"aiTitle":"'}; t=${t%'"'}
   [ -n "$t" ] && topic="$t"
 fi
 
-# which terminal pane is this? kitty sets TERM=xterm-kitty; WezTerm's env can leak
-# into kitty when it's launched from a WezTerm shell, so check kitty first.
-if [ "${TERM:-}" = xterm-kitty ] && [ -n "${KITTY_WINDOW_ID:-}" ]; then PANE="k$KITTY_WINDOW_ID"
-elif [ -n "${WEZTERM_PANE:-}" ]; then PANE="$WEZTERM_PANE"
-else                                   # any other terminal: use the tty of our claude ancestor
-  PANE=""; p=$PPID
-  for _ in 1 2 3 4 5 6 7 8; do
-    [ -z "$p" ] || [ "$p" -le 1 ] && break
-    # match on the program itself: native `claude`, or npm's `node …/claude-code/cli.js`
-    set -- $(ps -o args= -p "$p" 2>/dev/null)
-    case "${1##*/}:${2:-}" in
-      claude:*|node:*claude-code/cli.js)
-        t=$(ps -o tty= -p "$p" 2>/dev/null | tr -d ' ')
-        case "$t" in ''|'?'|'??') ;; *) PANE="t:$t"; break ;; esac ;;
-    esac
-    p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')
-  done
-fi
+[ "$AGENT" = aider ] || find_pane
 now=$(date +%s)
 if [ "$EV" != "SessionEnd" ]; then
-  printf '%s%s%s%s%s%s%s%s%s%s%s%s%s\n' "$now" "$US" "$state" "$US" "$PANE" "$US" "$CWD" "$US" "$detail" "$US" "$topic" "$US" "${TPATH:-}" > "$F.tmp" 2>/dev/null \
+  printf '%s\n' "$now$US$state$US$PANE$US$CWD$US$detail$US$topic$US${TPATH:-}$US$AGENT" > "$F.tmp" 2>/dev/null \
     && mv -f "$F.tmp" "$F" 2>/dev/null
 fi
 printf '%s %s\n' "$now" "$state" > "$DIR/companion.state" 2>/dev/null || true

@@ -66,6 +66,11 @@ widget_key() {
   w_${w}_key $1
 }
 
+# claude_in_use: Claude Code is here and nothing says you're using another
+# agent instead. Widgets with data only for Claude use it to choose between
+# "no data yet" and staying out of the way.
+claude_in_use() { (( $+commands[claude] )) && { (( ! ${#rowagents} )) || [[ -n ${rowagents[claude]} ]]; }; }
+
 # a line of text from the internet, made safe to print: no control characters
 # (a feed can't move the cursor or recolour the terminal)
 clean() { print -rn -- ${1//[[:cntrl:]]/}; }

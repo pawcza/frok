@@ -7,7 +7,7 @@ click_button() {
   if [[ -n $f ]] && (( x >= ${f%%:*} && x <= ${f##*:} )); then focus_pane $pane; return 0; fi
   if [[ -n $c ]] && (( x >= ${c%%:*} && x <= ${c##*:} )); then
     if [[ $confirm == $pane ]]; then
-      [[ ${panepid[$pane]} == <-> ]] && kill -TERM ${panepid[$pane]} 2>/dev/null   # ends Claude; the pane keeps its shell
+      [[ ${panepid[$pane]} == <-> ]] && kill -TERM ${panepid[$pane]} 2>/dev/null   # ends the agent; the pane keeps its shell
       confirm=""
     else confirm=$pane; confirm_until=$(( tick + 15 )); fi
     return 0

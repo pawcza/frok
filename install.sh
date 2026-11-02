@@ -1,7 +1,8 @@
 #!/bin/sh
 # frok bootstrap — gets a bare machine to the point where `frok` runs, then
 # starts the guided setup. Everything else (fonts, CLI tools, prompt,
-# backgrounds, companion hooks) is installed by frok itself as you pick it.
+# backgrounds, the companion) is installed by frok itself as you pick it.
+# No coding agent needed.
 #
 #   git clone https://github.com/pawcza/frok && ./frok/install.sh
 #   curl -fsSL https://raw.githubusercontent.com/pawcza/frok/main/install.sh | sh

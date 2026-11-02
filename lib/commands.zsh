@@ -15,13 +15,14 @@ frok — terminal setup and settings
   frok theme [name]                         colour theme (no name: list with swatches)
   frok background <effect>|none|<file>      animated, recoloured per theme: rain starfield snow aurora synthwave
   frok background opacity <0-1>
-  frok companion <pet>|none                 the Claude Code session pet (frok cat ghost robot octopus)
+  frok companion <pet>|none                 the pet and dashboard pane (frok cat ghost robot octopus)
   frok companion facts on|off               useless facts in the companion
   frok dashboard [add|remove|move|set|reset] the widgets under the sessions (no args: list)
   frok layout [name]                        pane layout (no name: list)
   frok layout open                          open the layout now (Windows Terminal)
   frok layout autostart on|off              build it when the terminal starts
-  frok agent "<command>"                    what agent panes run (default: claude)
+  frok agent "<command>"                    what agent panes run (default: the first agent found)
+  frok agents [on|off|watch|unwatch …]      which coding agents report to the companion
   frok workdir <dir>                        where layout panes start
   frok prompt starship|none
   frok font "<family>" [size] | frok font size <n>
@@ -43,7 +44,7 @@ apply_all() {
   render_shell
   render_starship
   font_install
-  companion_hooks $(cfg .companion)
+  agents_connect $(cfg .companion)
   skill_install
   render_terminals
   cfg_set .configured true
@@ -63,10 +64,12 @@ pick() {   # pick "<question>" <default> <options…> → chosen option
 
 # Everything that may need a password happens here, before the screens start.
 prepare() {
-  # what agent splits run, asked on the first setup when there's more than one way to start Claude
+  agents_ask
+  # what agent splits run, asked on the first setup when there's more than one way to start an agent
   if [[ $(cfg .configured) != true && $(cfg .agent) == claude ]]; then
-    local -a cc; cc=(${(f)"$(claude_choices)"})
+    local -a cc; cc=(${(f)"$(agent_choices)"})
     (( $#cc > 1 )) && cfg_set .agent "$(jstr "$(pick 'What should agent splits run?' ${cc[1]} $cc)")"
+    (( $#cc == 1 )) && cfg_set .agent "$(jstr $cc[1])"
   fi
   if (( EUID )) && has sudo && ! sudo -n true 2>/dev/null; then
     step "frok installs packages with sudo: enter your password once"
@@ -101,9 +104,12 @@ status_json() {
      --argjson comps "$(companion_names | jq -R . | jq -s .)" \
      --argjson bgs "$(bg_effects | jq -R . | jq -s .)" \
      --argjson widgets "$(widget_names | jq -R . | jq -s .)" \
-     --argjson claude "$(has claude && print true || print false)" '
+     --argjson claude "$(has claude && print true || print false)" \
+     --argjson agents "$(for a in $AGENTS; do agent_label $a; jq -n --arg id $a --arg label $AGENT_LABEL --arg features ${AGENT_FEATURES[$a]} \
+       --argjson installed "$(agent_present $a && print true || print false)" --argjson connected "$(agent_connected $a && print true || print false)" \
+       '{id:$id, label:$label, installed:$installed, connected:$connected, features:$features}'; done | jq -s .)" '
     {configured: ($cfg.configured // false), os:$os, package_manager:$pm, frok_home:$home, login_shell:$shell,
-     claude_code:$claude, terminals:{detected:$det, configured:$act}, settings:($cfg | del(.configured)),
+     claude_code:$claude, agents:$agents, terminals:{detected:$det, configured:$act}, settings:($cfg | del(.configured)),
      available:{themes:$themes, layouts:$layouts, companions:($comps + ["none"]), widgets:$widgets, backgrounds:($bgs + ["none","<path to image/gif>"]),
        prompts:["starship","none"], fonts:["CaskaydiaCove Nerd Font","JetBrainsMono Nerd Font","FiraCode Nerd Font","Hack Nerd Font","MesloLGS Nerd Font","<any installed font>"],
        tools:["eza","bat","fd","zoxide","ripgrep","fzf","delta","lazygit","gh","btop","tldr","autosuggestions"]}}'
@@ -116,7 +122,7 @@ status() {
   printf '  %-12s %s  %s\n' theme $(cfg .theme) "$(swatch)"
   printf '  %-12s %s (opacity %s)\n' background $(cfg .background) $(cfg .background_opacity)
   printf '  %-12s %s (facts %s)\n' companion $(cfg .companion) $(cfg .facts)
-  printf '  %-12s %s (autostart %s) · agent: %s · workdir: %s\n' layout $(cfg .layout) $(cfg .layout_on_start) "$(cfg .agent)" $(cfg .workdir)
+  printf '  %-12s %s (autostart %s) · agent: %s · workdir: %s\n' layout $(cfg .layout) $(cfg .layout_on_start) "${$(agent_command):-none found, panes open a shell}" $(cfg .workdir)
   printf '  %-12s %s\n' prompt $(cfg .prompt)
   printf '  %-12s %s %s\n' font "$(cfg .font.family)" $(cfg .font.size)
   printf '  %-12s %s\n' tools "$(cfg '.tools | join(" ")')"
@@ -128,10 +134,6 @@ doctor() {
   cfg_init
   local ok=1 t
   chk() { if eval "$2"; then say "$1"; else warn "$1 — $3"; ok=0; fi }
-  hooks_ok() {
-    local -a c=(${(f)"$(jq -r '[.hooks[]?[]?.hooks[]?.command | select(endswith("companion-event.sh"))] | unique | .[]' $1 2>/dev/null)"})
-    (( $#c )) && [[ -x ${c[1]} ]] && (( $#c == 1 ))
-  }
   chk "zsh, jq, curl, git"     'has zsh && has jq && has curl && has git' 'run install.sh again'
   chk "frok on PATH"           'has frok' 'add ~/.local/bin to PATH'
   chk "shell hook in rc"       'grep -qsF frok/generated/init.sh ~/.zshrc' 'run frok apply'
@@ -145,8 +147,12 @@ doctor() {
   if [[ $(cfg .companion) != none ]]; then
     for t in $(claude_dirs); do
       # hooked up, and pointing at a script that's actually there (it moves when frok does)
-      chk "companion hooks in ${t/#$HOME/~}" "hooks_ok $t/settings.json" 'frok apply'
+      agent_disabled claude || chk "companion hooks in ${t/#$HOME/~}" "hooks_present $t/settings.json" 'frok apply'
     done
+    for t in ${AGENTS:#claude}; do
+      agent_present $t && ! agent_disabled $t && chk "companion reporting from $t" "agent_connected $t" 'frok apply'
+    done
+    [[ -n $(agents_installed) ]] || say "no coding agent found (optional: the companion shows them when you add one)"
   fi
   for t in $(terminals_active); do
     case $t in
@@ -163,8 +169,7 @@ doctor() {
 uninstall() {
   local rc
   for rc in ~/.zshrc ~/.bashrc; do [[ -f $rc ]] && sed -i.bak.frok '/frok\/generated\/init.sh/d' $rc; done
-  companion_hooks none
-  for rc in $(claude_dirs); do [[ -L $rc/skills/frok ]] && rm $rc/skills/frok; done
+  agents_connect none
   local f=$(wt_settings) orig=$FROK_STATE/wt-original.json
   if [[ -n $f && -f $orig ]]; then
     jq --argjson o "$(<$orig)" --arg pet $WT_PET_GUID '

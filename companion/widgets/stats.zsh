@@ -1,9 +1,10 @@
-# stats — tokens, lines changed and commits: today, 7 days, 30 days (p or a click switches).
+# stats — tokens, lines changed, commits by day; p or a click switches (Claude Code only; hidden otherwise).
 W_LABEL[stats]=stats; W_KEYS[p]=stats
 
 plabel=("today" "7 days" "30 days"); pi=1; statvals=()
 refresh_stats() {        # sums from stats.sh's per-day index
-  [[ -r $STATE/stats/days.json ]] || { statvals=(); return }
+  statvals=()
+  [[ -r $STATE/stats/days.json ]] && jq -e 'length > 0' $STATE/stats/days.json >/dev/null 2>&1 || return
   statvals=("${(@f)$(jq -r --arg t $(strftime %F $EPOCHSECONDS) --arg w $(strftime %F $(( EPOCHSECONDS - 6*86400 ))) \
       --arg m $(strftime %F $(( EPOCHSECONDS - 29*86400 ))) '
     def sum($from): [to_entries[] | select(.key >= $from) | .value]
@@ -22,6 +23,7 @@ w_stats_click() { pi=$1; }
 
 w_stats_render() {
   local tabs="" x=1 k nums numw tabw stok sadd sdel scom
+  (( ${#statvals} == 3 )) || claude_in_use || return 0
   for (( k = 1; k <= 3; k++ )); do
     wclick+=("1:$x:$(( x + ${#plabel[k]} + 1 )):$k"); (( x += ${#plabel[k]} + 3 ))
     (( k == pi )) && tabs+="${KB}${ACC}"$'\e[1m'" ${plabel[k]} ${X} " || tabs+="${D} ${plabel[k]} ${X} "

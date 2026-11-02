@@ -48,9 +48,10 @@ dur() { local s=$1; (( s < 0 )) && s=0
   elif (( s >= 3600 )); then print -rn -- "$((s/3600))h$(( s%3600/60 ))m"
   else print -rn -- "$((s/60))m"; fi; }
 
-typeset -A PRI=(waiting 7 error 6 working 5 dizzy 4 thinking 3 bg 2 done 1 idle 0)
-typeset -A COL=(waiting $Y error $R working $C dizzy $M thinking $L bg $C done $G idle $G)
-typeset -A LAB=(waiting "needs you" error "error" working "working" dizzy "compacting" thinking "thinking" bg "background" done "done" idle "idle")
+# "running": an agent that doesn't report its state, found by its process
+typeset -A PRI=(waiting 7 error 6 working 5 dizzy 4 thinking 3 bg 2 done 1 idle 0 running 0)
+typeset -A COL=(waiting $Y error $R working $C dizzy $M thinking $L bg $C done $G idle $G running $D)
+typeset -A LAB=(waiting "needs you" error "error" working "working" dizzy "compacting" thinking "thinking" bg "background" done "done" idle "idle" running "running")
 
 ago() { local s=$1; (( s < 60 )) && { print -n "${s}s"; return }; (( s < 3600 )) && { print -n "$((s/60))m"; return }; print -n "$((s/3600))h"; }
 cut_to() { local s=$1 n=$2; (( n < 2 )) && n=2; (( ${#s} > n )) && s="${s[1,n-1]}…"; print -rn -- "$s"; }

@@ -347,7 +347,7 @@ wz_pv_companion() {
 wz_pane_label() {
   case $1 in
     companion) print frok ;;  shell) print shell ;;
-    agent) local a=$(cfg .agent); print -r -- ${${a%% *}:t} ;;
+    agent) local a=$(agent_command); print -r -- ${${${a%% *}:t}:-shell} ;;
     *) print -r -- ${${1%% *}:t} ;;
   esac
 }
@@ -456,7 +456,7 @@ wz_bg_strength() {
 }
 
 wz_companion() {
-  wz_header 3 Companion "A pane that shows your Claude Code sessions: who's busy, who's waiting on you."
+  wz_header 3 Companion "A pet and a dashboard in a pane. It also follows your coding agents: who's busy, who needs you."
   local -a opts=() n
   for n in $(companion_names); do opts+=($n "$(sed -n '1s/^# [a-z]* — //p' $COMPANION_DIR/pets/$n.zsh)"); done
   local c; c=$(WZ_PREVIEW=wz_pv_companion wz_choose $(cfg .companion) "${opts[@]}" none "no companion") || return 0
@@ -526,7 +526,7 @@ wz_layout_auto() {
 # What each split of the current layout runs and where it starts.
 wz_run_label() {
   case $1 in
-    agent) cfg .agent ;;  companion) print -r -- "frok, watching your sessions" ;;
+    agent) print -r -- ${$(agent_command):-a shell (no agent found)} ;;  companion) print -r -- "frok, watching your sessions" ;;
     shell) print -r -- "a shell" ;;  *) print -r -- $1 ;;
   esac
 }

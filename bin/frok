@@ -5,7 +5,7 @@
 emulate -L zsh
 setopt extendedglob pipefail
 FROK_HOME=${${0:A}:h:h}
-for f in core packages theme keys layout shell claude companion dashboard background fonts \
+for f in core packages theme keys layout shell agents companion dashboard background fonts \
          terminals/detect terminals/wezterm terminals/windows-terminal terminals/kitty wizard commands; do
   source $FROK_HOME/lib/$f.zsh
 done
@@ -25,7 +25,7 @@ case $cmd in
     wz_menu ;;
   setup)   setup "$@" ;;
   status)  status "$@" ;;
-  apply)   apply_all ;;
+  apply)   cfg_init; agents_ask ${1-}; apply_all ;;
   doctor)  doctor ;;
   help|-h|--help) usage ;;
 
@@ -71,6 +71,7 @@ case $cmd in
     esac ;;
 
   agent)   [[ -n ${1:-} ]] && { cfg_set .agent "$(jstr "$*")"; apply_all; } || print "agent: $(cfg .agent)" ;;
+  agents)  agents_cmd "$@" ;;
   workdir) [[ -n ${1:-} ]] && { cfg_set .workdir "$(jstr ${1/#$HOME/~})"; apply_all; } || print "workdir: $(cfg .workdir)" ;;
   prompt)  [[ ${1:-} == (starship|none) ]] || die "frok prompt starship|none"; cfg_set .prompt "$(jstr $1)"; apply_all ;;
 

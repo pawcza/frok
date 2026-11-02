@@ -31,7 +31,7 @@ pane_index() { print ${L_id[(ie)$1]}; }
 pane_cmd() {
   case $1 in
     companion) [[ $(cfg .companion) == none ]] && print "" || print "$HOME/.local/bin/frok companion run" ;;
-    agent)     cfg .agent ;;
+    agent)     agent_command ;;
     shell)     print "" ;;
     *)         print -r -- $1 ;;
   esac

@@ -1,0 +1,15 @@
+{"kind": "event", "event": {"id": "e", "type": "session.created", "properties": {"sessionID": "ses_1", "info": {"id": "ses_1", "slug": "s", "projectID": "p", "directory": "/w/cli", "title": "New session - 2026", "version": "1.19.5", "time": {"created": 1, "updated": 1}}}}}
+{"kind": "event", "event": {"id": "e", "type": "session.updated", "properties": {"sessionID": "ses_1", "info": {"id": "ses_1", "slug": "s", "projectID": "p", "directory": "/w/cli", "title": "Rename the config flag", "version": "1.19.5", "time": {"created": 1, "updated": 1}}}}}
+{"kind": "event", "event": {"id": "e", "type": "session.status", "properties": {"sessionID": "ses_1", "status": {"type": "busy"}}}}
+{"kind": "before", "input": {"tool": "bash", "sessionID": "ses_1", "callID": "c1"}, "output": {"args": {"command": "cargo test"}}}
+{"kind": "after", "input": {"tool": "bash", "sessionID": "ses_1", "callID": "c1", "args": {"command": "cargo test"}}, "output": {"title": "", "output": "", "metadata": {}}}
+{"kind": "before", "input": {"tool": "edit", "sessionID": "ses_1", "callID": "c2"}, "output": {"args": {"filePath": "/w/cli/src/flags.rs"}}}
+{"kind": "event", "event": {"id": "e", "type": "permission.asked", "properties": {"id": "per_1", "sessionID": "ses_1", "permission": "bash", "patterns": ["rm -rf target"], "metadata": {}, "always": []}}}
+{"kind": "event", "event": {"id": "e", "type": "permission.replied", "properties": {"sessionID": "ses_1", "requestID": "per_1", "reply": "once"}}}
+{"kind": "event", "event": {"id": "e", "type": "session.status", "properties": {"sessionID": "ses_1", "status": {"type": "retry", "attempt": 1, "message": "rate limited", "next": 5}}}}
+{"kind": "event", "event": {"id": "e", "type": "session.error", "properties": {"sessionID": "ses_1", "error": {"name": "ProviderAuthError", "data": {"providerID": "x", "message": "bad key"}}}}}
+{"kind": "event", "event": {"id": "e", "type": "session.idle", "properties": {"sessionID": "ses_1"}}}
+{"kind": "event", "event": {"id": "e", "type": "session.created", "properties": {"sessionID": "ses_2", "info": {"id": "ses_2", "slug": "s", "projectID": "p", "directory": "/w/cli", "title": "a subagent", "version": "1.19.5", "time": {"created": 1, "updated": 1}, "parentID": "ses_1"}}}}
+{"kind": "event", "event": {"id": "e", "type": "session.status", "properties": {"sessionID": "ses_2", "status": {"type": "busy"}}}}
+{"kind": "event", "event": {"id": "e", "type": "message.part.updated", "properties": {"sessionID": "ses_1", "part": {}}}}
+{"kind": "event", "event": {"id": "e", "type": "session.deleted", "properties": {"sessionID": "ses_1", "info": {"id": "ses_1", "slug": "s", "projectID": "p", "directory": "/w/cli", "title": "New session - 2026", "version": "1.19.5", "time": {"created": 1, "updated": 1}}}}}

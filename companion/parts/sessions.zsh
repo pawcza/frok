@@ -1,5 +1,6 @@
-# sessions.zsh — the session list: hook records, cross-checked against each
-# transcript and the status line.
+# sessions.zsh: the session list: what each agent reported, cross-checked (for
+# Claude Code) against the transcript and the status line, plus any agent found
+# running in a pane that reports nothing.
 
 # ── transcripts: context used, and whether the last turn has ended ─────
 # Re-read only when the file changes. Hooks can arrive late or out of order
@@ -31,35 +32,40 @@ transcript_info() {   # transcript_info <path> → tctx (% of the context window
   IFS=$US read -r _ tctx tended <<< "${tcache[$tp]}"
 }
 
-# ── sessions: one row per claude pane (+ hook-reported sessions elsewhere) ──
-rows=(); rowpane=(); top=idle
+# ── sessions: one row per agent pane (+ hook-reported sessions elsewhere) ──
+rows=(); rowpane=(); top=idle; typeset -A rowagents
 refresh_sessions() {
-  local f ts st pane cwd det topic tpath sid sctx name now=$EPOCHSECONDS tctx tended
+  local f ts st pane cwd det topic tpath sid sctx name now=$EPOCHSECONDS tctx tended agent lab
   local -A byp; local -a recs
   # newest hook file per pane wins; drop files for panes that are gone
   for f in "$SDIR"/*(N.om); do
-    IFS=$US read -r ts st pane cwd det topic tpath < "$f" 2>/dev/null || continue
+    IFS=$US read -r ts st pane cwd det topic tpath agent < "$f" 2>/dev/null || continue
     if [[ -n "$pane" ]]; then
       own_pane "$pane" || continue            # another terminal's session: not ours to show or prune
       if [[ ${#alive} -gt 0 && -z "${alive[$pane]}" ]] || [[ -n ${byp[$pane]} ]]; then rm -f "$f"; continue; fi
-      byp[$pane]="$ts$US$st$US$cwd$US$det$US$topic$US$tpath$US${f:t}"
+      byp[$pane]="$ts$US$st$US$cwd$US$det$US$topic$US$tpath$US${f:t}$US$agent"
     elif (( now - ts < 6*3600 )); then
-      byp[nopane-${f:t}]="$ts$US$st$US$cwd$US$det$US$topic$US$tpath$US${f:t}"
+      byp[nopane-${f:t}]="$ts$US$st$US$cwd$US$det$US$topic$US$tpath$US${f:t}$US$agent"
     fi
   done
-  # claude panes the hook hasn't reported yet: infer from the title glyph
-  for pane in ${(k)claudepane}; do
+  # panes running an agent that hasn't reported. Claude's pane title gives its
+  # state away; any other agent is simply running.
+  for pane in ${(k)agentpane}; do
     [[ -n ${byp[$pane]} ]] && continue
-    if [[ $BACKEND == generic || ${ptitle[$pane]} == ✳* ]]; then byp[$pane]="$now${US}idle$US${pcwd[$pane]}${US}no activity yet$US"
-    else byp[$pane]="$now${US}working$US${US}busy$US"; fi
+    agent=${agentpane[$pane]}
+    if [[ $agent != claude ]]; then byp[$pane]="$now${US}running$US${pcwd[$pane]}${US}no activity yet$US$US$US$US$agent"
+    elif [[ $BACKEND == generic || ${ptitle[$pane]} == ✳* ]]; then byp[$pane]="$now${US}idle$US${pcwd[$pane]}${US}no activity yet$US$US$US$US$agent"
+    else byp[$pane]="$now${US}working$US${US}busy$US$US$US$US$agent"; fi
   done
-  top=idle; quiet=999999
+  top=idle; quiet=999999; rowagents=()
   for pane in ${(k)byp}; do
     [[ -n $MYPANE && -z ${mine[$pane]} ]] && continue        # another tab's session
-    IFS=$US read -r ts st cwd det topic tpath sid <<< "${byp[$pane]}"
+    IFS=$US read -r ts st cwd det topic tpath sid agent <<< "${byp[$pane]}"
+    agent=${agent:-claude}; rowagents[$agent]=1      # records from before agents had a field are Claude's
+    tctx=""; tended=""
     # old records of Claude's "waiting for your input" nudge aren't real requests
     [[ $st == waiting && $det == "Claude is waiting for your input" ]] && { st=done; det="finished"; }
-    transcript_info "$tpath"
+    [[ $agent == claude ]] && transcript_info "$tpath"
     # Claude Code's own figure (via the status line) beats our estimate
     if [[ -n $sid && -r $STATE/status/$sid ]]; then
       IFS=$US read -r _ sctx _ < $STATE/status/$sid; [[ -n $sctx ]] && tctx=$sctx
@@ -85,12 +91,21 @@ refresh_sessions() {
     (( PRI[$st] > PRI[$top] )) && top=$st
     # name: Claude's title for the conversation (read from the terminal where it
     # lets us, else from the transcript via the hook), else the start of the
-    # latest prompt. A pane Claude hasn't titled yet is just "Claude Code".
-    name=${ptitle[$pane]}
-    [[ $name == [^[:alnum:]]\ * ]] && name=${name#* }     # drop Claude's spinner glyph
-    [[ $name == (|claude|Claude|Claude Code) ]] && name=$topic
-    [[ -z $name ]] && name="new session"
-    recs+=("${PRI[$st]}$US$ts$US$st$US$name$US$det$US$((now - ts))$US${pane#nopane-*}$US$tctx")
+    # latest prompt. A pane Claude hasn't titled yet is just "Claude Code". Other
+    # agents' pane titles say little, so what they reported comes first, then
+    # the folder.
+    agent_label $agent; lab=$AGENT_LABEL
+    if [[ $agent == claude ]]; then
+      name=${ptitle[$pane]}
+      [[ $name == [^[:alnum:]]\ * ]] && name=${name#* }   # drop Claude's spinner glyph
+      [[ $name == (|claude|Claude|Claude Code) ]] && name=$topic
+      [[ -z $name ]] && name="new session"
+    else
+      name=$topic
+      [[ -z $name && -n $cwd ]] && name="$lab · ${cwd:t}"
+      [[ -z $name ]] && name=$lab
+    fi
+    recs+=("${PRI[$st]}$US$ts$US$st$US$name$US$det$US$((now - ts))$US${pane#nopane-*}$US$tctx$US$lab")
   done
   rows=("${(@On)recs}")      # most urgent first, then most recent
 }

@@ -1,11 +1,13 @@
 # The companion
 
-One engine and a choice of pets. Claude Code tells it what each session is
-doing; the terminal tells it where the sessions live.
+One engine and a choice of pets. Coding agents tell it what each session is
+doing; the terminal tells it where the sessions live and which panes run an
+agent, so an agent that reports nothing still shows up.
 
 ```
-Claude Code ──hooks──────▶ companion-event.sh ──▶ state/companion/sessions/<id>
-            ──status line▶ statusline.sh ───────▶ state/companion/status/<id>
+any agent ───hook, plugin─▶ companion-event.sh <agent> ─▶ state/companion/sessions/<id>
+                            └ agents/<agent>.jq
+Claude Code ─status line─▶ statusline.sh ───────▶ state/companion/status/<id>
 transcripts ─────────────▶ stats.sh (every minute) ▶ state/companion/stats/days.json
                                                          │
 terminal (panes, ttys) ──────────────────────────▶ companion.zsh ◀── pets/<pet>.zsh
@@ -16,23 +18,28 @@ State lives in `~/.local/state/frok/companion/`.
 | File | What it does |
 |---|---|
 | `companion.zsh` | the pane: sets up the terminal, then loops: draw a frame, read a key or click |
-| `parts/panes.zsh` | which terminal this is, its panes, which run Claude, focusing one |
-| `parts/sessions.zsh` | the session list: hook records checked against transcripts and the status line |
+| `parts/panes.zsh` | which terminal this is, its panes, which run an agent, focusing one |
+| `parts/sessions.zsh` | the session list: what agents reported (for Claude Code, checked against transcripts and the status line), plus agents found by process |
 | `parts/pet.zsh` | loads the pet and draws it, mood and tricks included |
 | `parts/render.zsh` | one frame: pet and sessions, then the dashboard |
 | `parts/widgets.zsh` | the dashboard engine: loads the widget list from frok.json (live), draws each widget, routes keys and clicks |
 | `parts/input.zsh` | keys and clicks |
 | `parts/ui.zsh` | chips, bars, number formats |
 | `widgets/` | one file per dashboard widget ([format](widgets/README.md)); `news-fetch.py` reads feeds |
-| `companion-event.sh` | a Claude Code hook for every event (prompt, tool use, permission, stop…). Writes one line per session: time, state, pane, folder, what it's doing, its title, the transcript path. Never stores prompts, file contents or output, and always exits 0. |
+| `companion-event.sh` | what an agent calls on every event (prompt, tool use, permission, stop…). Writes one line per session: time, state, pane, folder, what it's doing, its title, the transcript path, the agent. Keeps only the start of a prompt, never file contents or output, and always exits 0. |
+| `agents/` | how to recognise each agent's process, and how its events map onto one vocabulary ([format](agents/README.md)) |
 | `statusline.sh` | Claude Code's status line command. Keeps the session's context % and the 5-hour / 7-day usage limits, and prints a short line in Claude Code |
 | `stats.sh` | indexes every transcript into per-day tokens, lines added/removed (from edits) and commits (successful `git commit` calls). Reads only new bytes after the first run. |
 | `pets/` | the pets: art, faces, tricks ([format](pets/README.md)). The frog doubles as the mascot in the setup screens. |
 
 ## Where a session's status comes from
 
-1. **The hook** reports each event as it happens.
-2. **The transcript** overrules it. If the last turn ended (or was interrupted),
+1. **The agent** reports each event as it happens, through a hook or plugin.
+   One that can't is listed as `running`, found by its process.
+
+For Claude Code, two more sources refine it:
+
+2. **The transcript** overrules the hook. If the last turn ended (or was interrupted),
    the session is done, even when a late hook, such as a background subagent
    finishing, said otherwise.
 3. **The status line** gives the exact context % (the transcript gives an
@@ -51,5 +58,5 @@ State lives in `~/.local/state/frok/companion/`.
 ## Demo mode
 
 `FROK_DEMO=1` makes the companion take its sessions only from the state files,
-skipping the process scan. `docs/screenshots/make.sh` uses this to draw the
-README screenshots from made-up sessions.
+skipping the process scan. `docs/screenshots/make.sh` uses this to film the
+README's GIFs from made-up sessions.

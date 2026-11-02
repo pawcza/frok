@@ -13,8 +13,8 @@ pick the change up within a second.
 | `system` | CPU, memory, disk, battery | `disk` (path, default /) |
 | `timer` | focus timer; `T` starts / stops | `minutes` (25), `break` (5) |
 | `fact` | a useless fact; space for another | |
-| `stats` | tokens, lines, commits; `p` switches today / 7 / 30 days | |
-| `limits` | 5-hour and 7-day usage limits | |
+| `stats` | tokens, lines, commits; `p` switches today / 7 / 30 days. Claude Code only, hidden otherwise | |
+| `limits` | 5-hour and 7-day usage limits. Claude Code only, hidden otherwise | |
 | `keys` | the settings button and pane shortcuts | |
 | `tricks` | the pet's tricks | |
 
@@ -47,7 +47,8 @@ w_name_click()   { … }       # optional: $1 is the action of what was clicked
 w_name_key()     { … }       # optional: $1 is the key
 ```
 
-Available to widgets: `wopt <widget> <option> <default>`, colours (`$G $Y $R $C
+A widget that fills no lines takes no room, which is how `stats` and `limits`
+step aside when there's nothing to show. Available to widgets: `wopt <widget> <option> <default>`, colours (`$G $Y $R $C
 $M $L $D $W $X`, chips `$KB`, accent `$ACC`), `bar <percent>`, `human <n>`,
 `dur <seconds>`, `cut_to <text> <width>`, `pack <width> <items…>`,
 `clean <text>` (always use it on text from the internet), `open_url`,

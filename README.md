@@ -3,26 +3,31 @@
 [![test](https://github.com/pawcza/frok/actions/workflows/test.yml/badge.svg)](https://github.com/pawcza/frok/actions/workflows/test.yml)
 [![MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-**A terminal upgrade for people who live in Claude Code.** One command sets up
-your theme, font, prompt, CLI tools and pane layouts. You also get a companion
-pane: a small animated pet that watches every Claude Code session you have open,
-tells you which one needs you, and keeps an eye on your usage limits.
+**A terminal upgrade you set up once.** One command gives you a theme, a
+Nerd Font, a prompt, modern CLI tools, animated backgrounds and pane layouts
+that build themselves when the terminal opens. A companion pane adds an animated
+pet and a dashboard you choose, and if you use a coding agent, it follows your
+sessions too.
 
-![The companion: sessions with context bars and status, then a fact, stats, usage limits and hotkeys](docs/img/companion.png)
+![The companion: sessions from several agents change state and the pet reacts, above a dashboard of clock, weather, headlines, timer, stats and limits](docs/img/companion.gif)
 
-- **Sessions at a glance:** what each one is doing, how full its context is,
-  and who's waiting for permission. Click a session to jump to its pane, or end
-  it from there.
-- **Usage:** your 5-hour and 7-day limits, plus tokens, lines changed and commits
-  for today, the last 7 days or the last 30.
+- **Your terminal, themed:** five colour schemes carried through the terminal,
+  prompt, fzf and companion, five animated backgrounds, and Nerd Fonts that
+  install themselves.
+- **Better tools, set up:** eza, bat, fd, zoxide, ripgrep, fzf, delta, lazygit,
+  gh, btop, tldr and inline suggestions, with starship as your prompt.
+- **Layouts:** splits for your shell, your agent and the companion, the same
+  keys in every terminal.
 - **A dashboard you choose:** weather, headlines, world clocks, system load, a
   focus timer and more, in whatever order you like.
-- **A pet with moods:** it squints while Claude works, goes wide-eyed when a
-  session needs you and cheers when one finishes. Poke it too often and it
-  leaves for a while.
-- **Your terminal, themed:** five colour schemes carried through the terminal,
-  prompt, fzf and companion, five animated backgrounds, Nerd Fonts and layouts
-  that build themselves when the terminal opens.
+- **A pet with moods:** it reacts to what's going on and does tricks when it's
+  quiet. Poke it too often and it leaves for a while.
+- **Agents at a glance:** Claude Code, Codex, Gemini CLI, opencode, aider or
+  anything else you run in a pane: what each is doing, and which one needs you.
+  [What works with which](#coding-agents).
+
+No coding agent is needed. Without one, the companion is the pet and the
+dashboard, and agent panes open a shell.
 
 ## Install
 
@@ -34,9 +39,9 @@ The installer gets `git curl jq zsh unzip` with your package manager (Homebrew,
 apt, dnf, pacman, zypper, apk; on a bare Mac it installs Homebrew first) and
 puts `frok` in `~/.local/bin`. Then it starts a six-step setup: theme,
 background, companion, layout, prompt, font. Each choice applies as you pick it.
-It only asks for your password when the system needs it. Fonts, CLI tools,
-starship and the Claude Code hooks are installed by frok itself as you choose
-them.
+It only asks for your password when the system needs it. Fonts, CLI tools and
+starship are installed by frok itself as you choose them. Any coding agent it
+finds is connected to the companion.
 
 On Windows, run it inside WSL. frok configures Windows Terminal and WezTerm on
 the Windows side from there, and installs fonts for your Windows user (no admin
@@ -50,7 +55,7 @@ needed).
 | `frok menu` | every setting, with its current value; `,` in the companion opens it too |
 | Ctrl+Shift+L | opens your layout in a new tab (Windows Terminal) |
 
-![The settings menu](docs/img/menu.png)
+![Moving through the settings menu, then previewing themes](docs/img/menu.gif)
 
 Every setting also has a direct command:
 
@@ -61,19 +66,20 @@ Every setting also has a direct command:
 | `frok companion <pet>\|none` | frok, cat, ghost, robot, octopus · `frok companion facts on\|off` |
 | `frok dashboard` | the widgets under the sessions · `add\|remove <widget>` · `move <widget> <n>` · `set <widget> <option> <value>` |
 | `frok layout [name]` | `single`, `side`, `quad`, `grid` · `frok layout open` · `frok layout autostart on` |
-| `frok agent "<cmd>"` | what agent panes run (default `claude`, e.g. `ccs personal`) · `frok workdir ~/dev` |
+| `frok agent "<cmd>"` | what agent panes run (default: the first agent found, e.g. `codex` or `ccs work`) · `frok workdir ~/dev` |
+| `frok agents` | which agents report to the companion · `on\|off <agent>` · `watch\|unwatch <command>` |
 | `frok prompt starship\|none` | |
 | `frok font "<family>" [size]` | Nerd Fonts download automatically |
 | `frok tools [install\|add\|remove]` | eza, bat, fd, zoxide, ripgrep, fzf, delta, lazygit, gh, btop, tldr, zsh-autosuggestions |
 | `frok terminals [set …\|auto]` | which terminals to configure (detected by default) |
 | `frok status`, `doctor`, `apply`, `update`, `uninstall` | |
 
-Prefer to ask? frok installs a Claude Code skill, so "make my terminal
-dracula" or "give me the quad layout" in any Claude session does the same.
+Prefer to ask? With Claude Code installed, frok adds a skill for it, so "make
+my terminal dracula" or "give me the quad layout" in any session does the same.
 
 ## The companion
 
-![The five pets, each mid-trick](docs/img/pets.png)
+![The five pets running through their tricks](docs/img/pets.gif)
 
 Pick a pet with `frok companion <name>`. Each one has its own art, faces and
 tricks: the frog catches flies, the cat knocks a mug off the ledge, the ghost
@@ -83,7 +89,7 @@ trick's key or click its chip in the footer.
 | In the companion | |
 |---|---|
 | click a session, or its **focus** button | jump to that pane |
-| **✕** (click twice) | end that Claude session; the pane keeps its shell |
+| **✕** (click twice) | end that agent; the pane keeps its shell |
 | `[` `]`, or the pager | more sessions (4 to a page) |
 | `p`, or click a period | stats for today · 7 days · 30 days |
 | `space` · `N` · `T` | a new fact · the next headline · start / stop the focus timer |
@@ -101,7 +107,8 @@ Under the sessions sits a dashboard of widgets you pick and order:
 | `news` | Hacker News or any RSS / Atom feeds; click a headline to open it |
 | `system` | CPU, memory, disk, battery |
 | `timer` | a focus timer: `T` to start, the pet cheers when it's done |
-| `fact` `stats` `limits` `keys` `tricks` | the defaults |
+| `fact` `keys` `tricks` | the defaults |
+| `stats` `limits` | also defaults: tokens, lines, commits and the 5-hour and 7-day limits. Claude Code only, and hidden when there's nothing to show |
 
 ```sh
 frok dashboard add weather 1                # at the top
@@ -116,9 +123,48 @@ own widget is one file: [widgets](companion/widgets/README.md).
 How it works and what it stores: [companion](companion/README.md).
 Adding a pet is one file: [pets](companion/pets/README.md).
 
+## Coding agents
+
+frok finds the agents you have installed and asks once before connecting each
+one, because their settings are theirs. What the companion can show depends on
+what the agent reports:
+
+| Agent | Connected through | Status | Needs you | Session name | Context, limits, stats | How frok tested it |
+|---|---|---|---|---|---|---|
+| **Claude Code** | hooks, status line, transcripts | ✓ | ✓ | ✓ | ✓ | fixtures; the hooks in everyday use |
+| **Codex CLI** | hooks (`~/.codex/hooks.json`). Run `/hooks` in Codex once: it skips new hooks until you trust them | ✓ | ✓ | latest prompt | not shown | fixtures from Codex's published schemas, not a live run |
+| **Gemini CLI** | hooks (`~/.gemini/settings.json`) | ✓ | ✓ | latest prompt | not shown | fixtures from its docs and the 0.66 source, not a live run |
+| **opencode** | a plugin (`~/.config/opencode/plugins/`) | ✓ | ✓ | its own title | not shown | the real plugin under Node, with events shaped from the 1.19 SDK types, not inside opencode |
+| **aider** | its notification command (`~/.aider.conf.yml`) | reply finished only | no | folder, where the terminal tells it | not shown | a stand-in process that runs the command the way aider's source does, not aider itself |
+| **Antigravity CLI** (`agy`) | found by process | running only | no | folder, where the terminal tells it | not shown | a stand-in process |
+| **anything else** | `frok agents watch <command>`, found by process | running only | no | folder, where the terminal tells it | not shown | a stand-in process |
+
+"Fixtures" means payloads in the agent's documented format, replayed through the
+real hook by `tests/run.sh`. No agent but Claude Code is installed where these
+tests were written, so the others have not been run live yet. Reports welcome.
+
+Only Claude Code reports context, limits and token stats. For every other agent
+those bars and rows stay hidden. Jumping to a session's pane and ending it use
+the same pane code for every agent, but only Claude Code has been tried in a real
+terminal.
+
+A few things to know:
+
+- aider reports once, when it finishes a reply or asks a question. It has no
+  signal for starting work, so a session keeps saying "done" until the next
+  reply, and aider rings the terminal bell when notifications are on.
+- Google has moved individual users from Gemini CLI to Antigravity CLI. Gemini CLI
+  keeps working with API keys. Antigravity's hooks take part in its permission
+  decisions, which a status display has no business doing, so frok only looks
+  for its process.
+- `frok agents on <agent>` connects an agent later, `frok agents off <agent>`
+  removes frok's entries and keeps them out, and `frok apply --yes` connects every
+  agent it finds without asking, for scripts.
+- Adding an agent is a small job: [agents](companion/agents/README.md).
+
 ## Themes
 
-![The companion in each of the five themes](docs/img/themes.png)
+![The companion switching through the five themes](docs/img/themes.gif)
 
 A theme colours the terminal, the prompt, fzf and the companion. Your own go in
 `~/.config/frok/themes/` ([format](themes/README.md)), and your own layouts in
@@ -127,7 +173,7 @@ A theme colours the terminal, the prompt, fzf and the companion. Your own go in
 
 ## Backgrounds
 
-![One frame of each animated background](docs/img/backgrounds.png)
+![The five animated backgrounds behind a working terminal, at opacity 0.5](docs/img/backgrounds.gif)
 
 Rain, starfield, snow, aurora and synthwave: seamless loops generated for your
 theme the first time you pick them (`frok background aurora`), shown behind the
@@ -167,6 +213,9 @@ frok only edits its own files and clearly marked blocks, and keeps backups:
 - **Claude Code**, in every config dir (`~/.claude`, `$CLAUDE_CONFIG_DIR`, ccs
   profiles): the companion's hooks, its status line (only where you have none
   of your own), and the `frok` skill
+- **Codex, Gemini CLI, opencode, aider**, only if installed: the entries or file
+  listed under [Coding agents](#coding-agents). Your own hooks stay, and aider's
+  config is left alone if it already has notification settings.
 
 `frok uninstall` undoes all of it and keeps `~/.config/frok`.
 
@@ -177,18 +226,21 @@ bin/frok              the command: reads the subcommand, hands it to lib/
 lib/
   core.zsh            paths, output, config          packages.zsh   installing things
   commands.zsh        setup, apply, status, doctor, uninstall
-  theme  layout  keys  shell  background  fonts  claude  companion   one concern each
+  theme  layout  keys  shell  background  fonts  companion   one concern each
+  agents.zsh          which coding agents are here and how they connect
+  agents/             one file per agent: claude, codex, gemini, opencode, aider
   terminals/          detect, wezterm, windows-terminal, kitty
   wizard.zsh          the setup screens and `frok menu`
 companion/            the companion pane (see its README)
   companion.zsh       main loop          parts/   panes, sessions, pet, widgets, render, input…
-  companion-event.sh  Claude Code hook   statusline.sh  stats.sh   pets/  widgets/
+  companion-event.sh  the hook agents call   statusline.sh  stats.sh   pets/  widgets/
+  agents/             each agent's events, mapped to one vocabulary (see its README)
 skill/                the Claude Code skill (lets Claude drive frok)
 themes/  layouts/     built-in themes and layouts (JSON, see their READMEs)
 shell/                the shell init and starship template frok renders
 backgrounds/          the animated backgrounds (frokbg package, see its README)
 tests/                tests/run.sh: offline, in a sandbox; runs on every push
-docs/                 screenshots (rebuild with docs/screenshots/make.sh)
+docs/                 the GIFs in this README (rebuild with docs/screenshots/make.sh)
 ```
 
 ## Contributing

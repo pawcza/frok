@@ -1,5 +1,5 @@
 # panes.zsh — the terminal side: which terminal we are in, its panes and which
-# run Claude, focusing one, and the size of our own pane.
+# run a coding agent, focusing one, and the size of our own pane.
 
 WZ=/Applications/WezTerm.app/Contents/MacOS/wezterm; [[ -x $WZ ]] || WZ=wezterm
 KT=/Applications/kitty.app/Contents/MacOS/kitten;     [[ -x $KT ]] || KT=kitten
@@ -27,8 +27,8 @@ focus_pane() {
   else $WZ cli activate-pane --pane-id "$1" >/dev/null 2>&1 &!; fi
 }
 
-# ── panes: titles, ttys, and which ones run claude (refreshed every ~2s) ──
-typeset -A ptitle claudepane bgcount alive pcwd wtpane
+# ── panes: titles, ttys, and which agent each runs (refreshed every ~2s) ──
+typeset -A ptitle agentpane bgcount alive pcwd wtpane
 # A companion opened by frok's layout shows only its own launch: the layout's
 # panes carry FROK_PANE and all start together, so a session belongs to us when
 # its pane started within 30s of ours. (Another tab's sessions stay untouched.)
@@ -51,9 +51,9 @@ refresh_generic() {
   pslines=("${(@f)$(ps -Ao pid=,ppid=,tty=,args= 2>/dev/null)}")
   for line in "${pslines[@]}"; do
     w=(${=line})
-    # native `claude`, or npm's `node …/claude-code/cli.js` (common on Linux/WSL)
-    [[ ( ${w[4]} == (*/|)claude || ${w[5]} == *claude-code/cli.js ) && ${w[3]} != (\?|\?\?|-) ]] || continue
-    claudepane[t:${w[3]}]=1; alive[t:${w[3]}]=1; cpane[${w[1]}]=t:${w[3]}; panepid[t:${w[3]}]=${w[1]}
+    [[ ${w[3]} != (\?|\?\?|-) ]] || continue
+    agent_of ${w[4,8]}; [[ -n $AGENT_ID ]] || continue
+    agentpane[t:${w[3]}]=$AGENT_ID; alive[t:${w[3]}]=1; cpane[${w[1]}]=t:${w[3]}; panepid[t:${w[3]}]=${w[1]}
     # when you last typed in (or focused) the pane: its tty's access time
     local -a at; zstat -A at +atime /dev/${w[3]} 2>/dev/null && patime[t:${w[3]}]=${at[1]}
     # a Windows Terminal pane from frok's layout carries its pane id (FROK_PANE)
@@ -73,7 +73,7 @@ refresh_generic() {
 }
 
 refresh_panes() {
-  ptitle=(); claudepane=(); bgcount=(); alive=(); wtpane=(); mine=(); patime=(); panepid=(); focused=""
+  ptitle=(); agentpane=(); bgcount=(); alive=(); wtpane=(); mine=(); patime=(); panepid=(); focused=""
   if [[ -n ${FROK_DEMO-} ]]; then       # screenshots (docs/screenshots): sessions only from the state files
     local f p; for f in $SDIR/*(N.); do IFS=$US read -r _ _ p _ < $f; [[ -n $p ]] && { alive[$p]=1; wtpane[$p]=demo; panepid[$p]=demo; }; done
     focused=${FROK_DEMO_FOCUS-}; return
@@ -88,12 +88,13 @@ refresh_panes() {
     return
   fi
   if [[ $BACKEND == kitty ]]; then
-    local kl kid kc kt
+    local kl kid kc kt kp
     for kl in "${(@f)$($KT @ ls 2>/dev/null | jq -r '.[].tabs[].windows[] |
-        "k\(.id)\t\([.foreground_processes[]?.cmdline[0]? // "" | split("/") | last] | index("claude") != null)\t\(.title)"' 2>/dev/null)}"; do
+        "k\(.id)\t\([.foreground_processes[]?.cmdline // [] | join(" ")] | join("\u001f"))\t\(.title)"' 2>/dev/null)}"; do
       [[ -z "$kl" ]] && continue
       kid=${kl%%$TAB*}; kl=${kl#*$TAB}; kc=${kl%%$TAB*}; kt=${kl#*$TAB}
-      ptitle[$kid]=$kt; alive[$kid]=1; [[ $kc == true ]] && claudepane[$kid]=1
+      ptitle[$kid]=$kt; alive[$kid]=1
+      for kp in "${(@ps:$US:)kc}"; do agent_of ${=kp}; [[ -n $AGENT_ID ]] && { agentpane[$kid]=$AGENT_ID; break; }; done
     done
     focused=k$($KT @ ls 2>/dev/null | jq -r '[.[] | select(.is_focused) | .tabs[] | select(.is_focused) | .windows[] | select(.is_focused) | .id][0] // empty' 2>/dev/null)
     return
@@ -105,18 +106,19 @@ refresh_panes() {
     ptitle[$id]=$title; alive[$id]=1; ttypane[$tty]=$id
   done
   focused=$($WZ cli list-clients --format json 2>/dev/null | jq -r '.[0].focused_pane_id // empty' 2>/dev/null)
-  # claude processes per pane, and the shells they're running: a finished turn
+  # agent processes per pane, and the shells they're running: a finished turn
   # that still has shell children is running background tasks
   local -a w; local -A cpane
-  local -a pslines; pslines=("${(@f)$(ps -Ao pid=,ppid=,tty=,comm= 2>/dev/null)}")
+  local -a pslines; pslines=("${(@f)$(ps -Ao pid=,ppid=,tty=,args= 2>/dev/null)}")
   for line in "${pslines[@]}"; do
     w=(${=line})
-    [[ ${w[4]} == (*/|)claude && -n ${ttypane[${w[3]}]} ]] || continue
-    claudepane[${ttypane[${w[3]}]}]=1; cpane[${w[1]}]=${ttypane[${w[3]}]}; panepid[${ttypane[${w[3]}]}]=${w[1]}
+    [[ -n ${ttypane[${w[3]}]} ]] || continue
+    agent_of ${w[4,8]}; [[ -n $AGENT_ID ]] || continue
+    agentpane[${ttypane[${w[3]}]}]=$AGENT_ID; cpane[${w[1]}]=${ttypane[${w[3]}]}; panepid[${ttypane[${w[3]}]}]=${w[1]}
   done
   for line in "${pslines[@]}"; do
     w=(${=line})
-    [[ -n ${cpane[${w[2]}]} && ${w[4]} == (*/|)(zsh|bash|sh) ]] && (( bgcount[${cpane[${w[2]}]}]++ ))
+    [[ -n ${cpane[${w[2]}]} && ${${w[4]}#-} == (*/|)(zsh|bash|sh) ]] && (( bgcount[${cpane[${w[2]}]}]++ ))
   done
 }
 

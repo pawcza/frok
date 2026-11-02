@@ -20,14 +20,16 @@ draw_frame() {
   (( npg = (${#rows} + 3) / 4, npg < 1 && (npg = 1), pg > npg && (pg = npg), pg < 1 && (pg = 1) ))
   (( confirm_until < tick )) && confirm=""
   if (( ${#rows} == 0 )); then
-    sess+=("${D}✶ no Claude sessions running${X}"); rowpane+=("")
+    sess+=("${D}✶ no agent sessions running${X}"); rowpane+=("")
   else
     for r in "${(@)rows[(pg - 1) * 4 + 1, pg * 4]}"; do
-      IFS=$US read -r _ _ st name det age pane pct <<< "$r"
+      IFS=$US read -r _ _ st name det age pane pct alab <<< "$r"
       c=${COL[$st]:-$W}; lab=${LAB[$st]:-$st}
       [[ $st == working || $st == thinking ]] && lab="$lab$dots"
       when=$(ago $age); [[ $det == "no activity yet" || $det == busy ]] && when=""
-      # buttons: focus when we can reach the pane, close when we know its claude
+      # with more than one kind of agent on screen, each row says which it is
+      tag=""; (( ${#rowagents} > 1 )) && tag=$alab
+      # buttons: focus when we can reach the pane, close when we know its agent
       canfocus=0; own_pane "$pane" && { [[ $BACKEND != generic ]] || [[ -n ${wtpane[$pane]} ]]; } && canfocus=1
       canclose=0; [[ -n ${panepid[$pane]} ]] && canclose=1
       bt=""; (( btw = 0 ))
@@ -37,9 +39,10 @@ draw_frame() {
         if [[ $confirm == $pane ]]; then bt+="${R}"$'\e[7m'" sure? ${X}"; (( btw += 7 )); cl=7
         else bt+="${KB} ✕ ${X}"; (( btw += 3 )); cl=3; fi
       fi
-      head=$(cut_to "$name" $(( iw - 6 - btw )))
+      head=$(cut_to "$name" $(( iw - 6 - btw - ${#tag} - ( ${#tag} ? 1 : 0 ) )))
       if [[ -n $focused && $pane == $focused ]]; then line="${c}●${X} ${KB}${ACC}"$'\e[1m'" ${head} ${X}"; (( vis = 4 + ${#head} ))   # the pane you're in
       else line="${c}●${X} ${W}${head}${X}"; (( vis = 2 + ${#head} )); fi
+      [[ -n $tag ]] && { line+=" ${D}${tag}${X}"; (( vis += 1 + ${#tag} )); }
       if (( btw )); then
         (( gap = iw - vis - btw, gap < 1 && (gap = 1) ))
         line+="${(l:gap:)}$bt"

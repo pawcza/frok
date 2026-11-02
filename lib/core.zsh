@@ -37,6 +37,8 @@ FROK_DEFAULTS='{
   "layout": "side",
   "layout_on_start": true,
   "agent": "claude",
+  "agents_off": [],
+  "agents_watch": [],
   "workdir": "~",
   "prompt": "starship",
   "font": { "family": "CaskaydiaCove Nerd Font", "size": 11 },
