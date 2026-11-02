@@ -440,8 +440,54 @@ t_agent_consent() {
   PATH=$saved; HOME=$oldhome; rehash
 }
 
+# A failed request says nothing about the city, so it must never read as a bad one.
+t_weather_failures() {
+  local d=$SANDBOX/weather f=$SANDBOX/weather/weather.json saved=$PATH
+  mkdir -p $d/bin
+  cat > $d/refresh.zsh <<'Z'
+zmodload zsh/stat zsh/datetime
+typeset -A W_LABEL
+wopt() { print -r -- ${${(M)2:#city}:+Gdynia}${${(M)2:#units}:+metric}; }
+WSTATE=$1
+source $2/companion/widgets/weather.zsh
+w_weather_refresh
+Z
+  stub() {   # stub <geocoding reply, or fail> <forecast reply, or fail>
+    print -r -- "#!/bin/sh
+case \"\$*\" in
+  *geocoding*) [ '$1' = fail ] && exit 28; printf '%s' '$1' ;;
+  *) [ '$2' = fail ] && exit 28; printf '%s' '$2' ;;
+esac" > $d/bin/curl; chmod +x $d/bin/curl
+  }
+  refresh() {
+    rm -f $f.lock; [[ ${1-} == keep ]] || rm -f $f.retry; [[ -f $f ]] && touch -d '1 hour ago' $f
+    PATH=$d/bin:$saved zsh $d/refresh.zsh $d $ROOT
+    local i; for i in {1..40}; do [[ -e $f.lock ]] || break; sleep 0.05; done
+  }
+  local good='{"city":"Gdynia","units":"metric","place":"Gdynia","current":{"temperature_2m":9}}'
+  local geo='{"results":[{"latitude":54.5,"longitude":18.5,"name":"Gdynia"}]}'
+
+  stub fail fail; refresh
+  check "weather: lookup down, nothing cached: no false error" "[[ ! -e $f && ! -e $f.lock ]]"
+
+  print -r -- $good > $f; stub fail fail; refresh
+  check "weather: lookup down keeps the last forecast" "[[ \$(jq -r '.error // \"none\"' $f) == none && \$(jq -r .current.temperature_2m $f) == 9 ]]"
+
+  stub $geo fail; refresh
+  check "weather: forecast down keeps the last forecast" "[[ \$(jq -r .current.temperature_2m $f) == 9 ]]"
+
+  stub $geo '{"current":{"temperature_2m":11}}'; refresh keep
+  check "weather: waits a minute after a failure" "[[ \$(jq -r .current.temperature_2m $f) == 9 ]]"
+
+  stub $geo '{"current":{"temperature_2m":12}}'; refresh
+  check "weather: a good reply replaces it" "[[ \$(jq -r .current.temperature_2m $f) == 12 && \$(jq -r .place $f) == Gdynia ]]"
+
+  stub '{"generationtime_ms":0.2}' fail; refresh
+  check "weather: only a real empty answer says no such place" "[[ \$(jq -r .error $f) == 'no such place' ]]"
+}
+
 typeset -a all=(syntax themes layouts pets widgets backgrounds hook statusline stats companion dashboard cli
-  agent_detection agent_codex agent_gemini agent_opencode agent_consent agent_panes agent_only_claude_features no_agents agent_connect)
+  agent_detection agent_codex agent_gemini weather_failures agent_opencode agent_consent agent_panes agent_only_claude_features no_agents agent_connect)
 for t in ${@:-$all}; do print -P "%B$t%b"; t_$t; done
 print; if (( fail )); then print -P "%F{green}$pass passed%f, %F{red}$fail failed%f"; else print -P "%F{green}$pass passed%f"; fi
 (( fail == 0 ))

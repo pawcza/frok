@@ -5,22 +5,29 @@ W_LABEL[weather]=weather
 w_weather_refresh() {
   local city=$(wopt weather city "") f=$WSTATE/weather.json
   [[ -n $city && -z ${FROK_DEMO-} ]] || return
-  local -a m; zstat -A m +mtime -- $f 2>/dev/null
+  local -a m r; zstat -A m +mtime -- $f 2>/dev/null; zstat -A r +mtime -- $f.retry 2>/dev/null
   # every 15 minutes, or right away when the city or units change
   [[ -f $f && $(jq -r '.city + "|" + .units' $f 2>/dev/null) == "$city|$(wopt weather units metric)" ]] \
     && (( EPOCHSECONDS - ${m[1]:-0} < 900 )) && return
+  # after a failed request, give the service a minute before asking again
+  (( EPOCHSECONDS - ${r[1]:-0} < 60 )) && return
   [[ -e $f.lock ]] && return; : >| $f.lock
   {
     local units=$(wopt weather units metric) q geo lat lon place tu wu
     [[ $units == imperial ]] && { tu=fahrenheit; wu=mph; } || { tu=celsius; wu=kmh; }
     q=$(jq -rn --arg c "$city" '$c | @uri')
-    geo=$(curl -fs --max-time 8 "https://geocoding-api.open-meteo.com/v1/search?name=$q&count=1")
+    # A failed request says nothing about the city: keep what we have and try again.
+    geo=$(curl -fs --max-time 8 "https://geocoding-api.open-meteo.com/v1/search?name=$q&count=1") || { : >| $f.retry; rm -f $f.lock; return }
     lat=$(jq -r '.results[0].latitude // empty' <<< $geo); lon=$(jq -r '.results[0].longitude // empty' <<< $geo)
     place=$(jq -r '.results[0].name // empty' <<< $geo)
     if [[ -n $lat ]]; then
-      curl -fs --max-time 8 "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&timezone=auto&forecast_days=1&temperature_unit=$tu&wind_speed_unit=$wu&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,is_day&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max" \
-        | jq --arg city "$city" --arg units "$units" --arg place "$place" '. + {city: $city, units: $units, place: $place}' > $f.tmp \
-        && mv -f $f.tmp $f
+      local forecast=$(curl -fs --max-time 8 "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&timezone=auto&forecast_days=1&temperature_unit=$tu&wind_speed_unit=$wu&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,is_day&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max")
+      if [[ -n $forecast ]]; then
+        jq --arg city "$city" --arg units "$units" --arg place "$place" '. + {city: $city, units: $units, place: $place}' <<< $forecast > $f.tmp \
+          && mv -f $f.tmp $f && rm -f $f.retry
+      else
+        : >| $f.retry
+      fi
     else
       jq -n --arg city "$city" --arg units "$units" '{city: $city, units: $units, error: "no such place"}' > $f
     fi
