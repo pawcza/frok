@@ -59,7 +59,7 @@ config.background = {
     horizontal_align = 'Left', vertical_align = 'Top' },
   { source = { Color = '${T[bg]}' }, width = '100%', height = '100%', opacity = $(printf '%.2f' $(( 1 - op ))) },
 }
-config.text_background_opacity = 0.0
+config.text_background_opacity = 1.0
 config.animation_fps = 25 -- the rain GIF is 25fps"
     fi
     print -r -- "
